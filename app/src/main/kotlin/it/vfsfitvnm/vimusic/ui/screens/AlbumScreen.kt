@@ -405,9 +405,9 @@ private fun LoadingOrError(
 }
 
 private suspend fun fetchAlbum(browseId: String): Result<Album>? {
-    return YouTube.playlistOrAlbum(browseId)
+    return YouTube.album(browseId)
         ?.map { youtubeAlbum ->
-            Album(
+            val album = Album(
                 id = browseId,
                 title = youtubeAlbum.title,
                 thumbnailUrl = youtubeAlbum.thumbnail?.url,
@@ -415,19 +415,23 @@ private suspend fun fetchAlbum(browseId: String): Result<Album>? {
                 authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
                 shareUrl = youtubeAlbum.url,
                 timestamp = System.currentTimeMillis()
-            ).also(Database::upsert).also {
-                youtubeAlbum.withAudioSources().items?.forEachIndexed { position, albumItem ->
-                    albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
-                        Database.insert(mediaItem)
-                        Database.upsert(
-                            SongAlbumMap(
-                                songId = mediaItem.mediaId,
-                                albumId = browseId,
-                                position = position
-                            )
+            )
+
+            Database.upsert(album)
+
+            youtubeAlbum.items?.forEachIndexed { position, albumItem ->
+                albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
+                    Database.insert(mediaItem)
+                    Database.upsert(
+                        SongAlbumMap(
+                            songId = mediaItem.mediaId,
+                            albumId = browseId,
+                            position = position
                         )
-                    }
+                    )
                 }
             }
+
+            album
         }
 }

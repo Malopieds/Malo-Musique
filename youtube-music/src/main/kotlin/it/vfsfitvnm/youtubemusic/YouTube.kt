@@ -13,6 +13,7 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import it.vfsfitvnm.youtubemusic.models.BrowseResponse
@@ -526,7 +527,7 @@ object YouTube {
                     return@runCatching playerResponse
                 }
 
-                val audioStreams = client.get("https://pipedapi.kavin.rocks/streams/$videoId") {
+                val audioStreams = client.get("https://watchapi.whatever.social/streams/$videoId") {
                     contentType(ContentType.Application.Json)
                 }.body<PipedResponse>().audioStreams
 
@@ -878,47 +879,26 @@ object YouTube {
                                 ?.continuation
                         ).next()
                     }
-                }?.recoverIfCancelled()?.getOrNull()
-            } ?: this
-        }
-
-        suspend fun withAudioSources(): PlaylistOrAlbum {
-            @Serializable
-            data class RelatedStream(
-                val url: String,
-                val title: String
-            )
-
-            @Serializable
-            data class Response(
-                val relatedStreams: List<RelatedStream>
-            )
-
-            return url?.replace("https://music.youtube.com/playlist?list=", "https://pipedapi.kavin.rocks/playlists/")?.let { url ->
-                val sources = client.get(url).body<Response>().relatedStreams
-
-                copy(
-                    items = items?.mapIndexed { index, item ->
-                        if (item.info.endpoint?.type != "MUSIC_VIDEO_TYPE_ATV") {
-                            sources.getOrNull(index)?.let { source ->
-                                item.copy(
-                                    info = item.info.copy(
-                                        endpoint = item.info.endpoint?.copy(
-                                            videoId = source.url.removePrefix("/watch?v=")
-                                        )
-                                    )
-                                )
-                            } ?: item
-                        } else {
-                            item
-                        }
-                    }
-                )
+                }.recoverIfCancelled()?.getOrNull()
             } ?: this
         }
     }
 
-    suspend fun playlistOrAlbum(browseId: String): Result<PlaylistOrAlbum>? {
+    suspend fun album(browseId: String): Result<PlaylistOrAlbum>? {
+        return playlistOrAlbum(browseId)?.map { album ->
+           album.url?.let { Url(it).parameters["list"] }?.let { playlistId ->
+                playlistOrAlbum("VL$playlistId")?.getOrNull()?.let { playlist ->
+                    album.copy(items = playlist.items)
+                }
+            } ?: album
+        }
+    }
+
+    suspend fun playlist(browseId: String): Result<PlaylistOrAlbum>? {
+        return playlistOrAlbum(browseId)
+    }
+
+    private suspend fun playlistOrAlbum(browseId: String): Result<PlaylistOrAlbum>? {
         return browse(browseId)?.map { body ->
             PlaylistOrAlbum(
                 title = body

@@ -9,7 +9,7 @@ android {
         create("release") {
         }
     }
-    compileSdk = 32
+    compileSdk = 33
 
     defaultConfig {
         applicationId = "com.vfsfitvnm.vimusic"
