@@ -27,11 +27,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.CacheSpan
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
+import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Format
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
@@ -116,27 +118,27 @@ fun StatsForNerds(
             ) {
                 Column(horizontalAlignment = Alignment.End) {
                     BasicText(
-                        text = "Id",
+                        text = stringResource(R.string.id),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                     BasicText(
-                        text = "Volume",
+                        text = stringResource(R.string.volume),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                     BasicText(
-                        text = "Loudness",
+                        text = stringResource(R.string.loudness),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                     BasicText(
-                        text = "Bitrate",
+                        text = stringResource(R.string.bitrate),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                     BasicText(
-                        text = "Size",
+                        text = stringResource(R.string.size),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                     BasicText(
-                        text = "Cached",
+                        text = stringResource(R.string.cached),
                         style = typography.xs.medium.color(colorPalette.onOverlay)
                     )
                 }
@@ -186,7 +188,7 @@ fun StatsForNerds(
 
             if (format != null && format?.itag == null) {
                 BasicText(
-                    text = "FETCH MISSING DATA",
+                    text = stringResource(R.string.fetch_missing_data),
                     style = typography.xxs.medium.color(colorPalette.onOverlay),
                     modifier = Modifier
                         .clickable(

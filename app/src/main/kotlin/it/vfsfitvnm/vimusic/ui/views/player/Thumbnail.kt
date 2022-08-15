@@ -1,5 +1,6 @@
 package it.vfsfitvnm.vimusic.ui.views.player
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -7,6 +8,9 @@ import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.with
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -37,6 +41,7 @@ import it.vfsfitvnm.vimusic.utils.thumbnail
 import java.net.UnknownHostException
 import java.nio.channels.UnresolvedAddressException
 
+@OptIn(ExperimentalFoundationApi::class)
 @ExperimentalAnimationApi
 @Composable
 fun Thumbnail(
@@ -57,6 +62,8 @@ fun Thumbnail(
     val mediaItemIndex by rememberMediaItemIndex(player)
 
     val error by rememberError(player)
+
+    var xOffset = 0f
 
     AnimatedContent(
         targetState = mediaItemIndex,
@@ -88,11 +95,27 @@ fun Thumbnail(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { onShowLyrics(true) },
-                            onLongPress = { onShowStatsForNerds(true) }
-                        )
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                xOffset = 0f
+                            },
+                            onDragEnd = {
+                                if (xOffset >= 30){
+                                    binder.player.seekToPreviousMediaItem()
+                                } else if (xOffset <= -30) {
+                                    binder.player.seekToNextMediaItem()
+                                }
+                            }
+                        ) { change, dragAmount ->
+                            change.consume()
+
+                            xOffset += dragAmount
+                        }
                     }
+                    .combinedClickable(
+                        onClick = { onShowLyrics(true) },
+                        onLongClick = { onShowStatsForNerds(true) }
+                    )
                     .fillMaxSize()
             )
 

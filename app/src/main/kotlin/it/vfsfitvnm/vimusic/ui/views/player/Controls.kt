@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,6 +43,7 @@ import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Song
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.SeekBar
+import it.vfsfitvnm.vimusic.ui.screens.artistRoute
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.favoritesIcon
 import it.vfsfitvnm.vimusic.utils.bold
@@ -57,7 +59,8 @@ fun Controls(
     shouldBePlaying: Boolean,
     position: Long,
     duration: Long,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onGlobalRouteEmitted: (() -> Unit)? = null,
 ) {
     val (colorPalette, typography) = LocalAppearance.current
 
@@ -82,6 +85,8 @@ fun Controls(
         targetValueByState = { if (it) 32.dp else 16.dp }
     )
 
+    val onGoToArtist = artistRoute::global
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -104,7 +109,26 @@ fun Controls(
             text = mediaItem.mediaMetadata.artist?.toString() ?: "",
             style = typography.s.semiBold.secondary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .clickable {
+                    onGoToArtist?.let { onGoToArtist ->
+                        mediaItem.mediaMetadata.extras?.getStringArrayList("artistNames")
+                            ?.let { artistNames ->
+                                mediaItem.mediaMetadata.extras?.getStringArrayList("artistIds")
+                                    ?.let { artistIds ->
+                                        artistNames.zip(artistIds)
+                                            .forEach { (authorName, authorId) ->
+                                                if(authorId != null){
+                                                    onGlobalRouteEmitted?.invoke()
+                                                    onGoToArtist(authorId)
+                                                }
+                                            }
+                                    }
+                            }
+                    }
+                }
+
         )
 
         Spacer(
@@ -285,3 +309,4 @@ fun Controls(
         )
     }
 }
+

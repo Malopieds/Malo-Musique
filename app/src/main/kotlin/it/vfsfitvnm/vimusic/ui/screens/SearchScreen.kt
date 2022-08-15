@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -191,7 +192,7 @@ fun SearchScreen(initialTextInput: String, onSearch: (String) -> Unit, onUri: (U
                                         exit = fadeOut(tween(100)),
                                     ) {
                                         BasicText(
-                                            text = "Enter a song, an album, an artist name...",
+                                            text = stringResource(R.string.search_hint),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
                                             style = typography.m.secondary,
@@ -255,7 +256,7 @@ fun SearchScreen(initialTextInput: String, onSearch: (String) -> Unit, onUri: (U
                         )
 
                         BasicText(
-                            text = "Open URL",
+                            text = stringResource(R.string.open_url),
                             style = typography.s.secondary,
                             modifier = Modifier
                                 .padding(horizontal = 8.dp)

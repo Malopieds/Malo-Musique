@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.route.RouteHandler
@@ -116,14 +117,14 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                     ) {
                         BasicText(
                             text = when (builtInPlaylist) {
-                                BuiltInPlaylist.Favorites -> "Favorites"
-                                BuiltInPlaylist.Offline -> "Offline"
+                                BuiltInPlaylist.Favorites -> stringResource(R.string.fav)
+                                BuiltInPlaylist.Offline -> stringResource(R.string.offline)
                             },
                             style = typography.m.semiBold
                         )
 
                         BasicText(
-                            text = "${songs.size} songs",
+                            text = "${songs.size} " + stringResource(R.string.songs),
                             style = typography.xxs.semiBold.secondary
                         )
                     }
@@ -165,7 +166,7 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                                         Menu {
                                             MenuEntry(
                                                 icon = R.drawable.enqueue,
-                                                text = "Enqueue",
+                                                text = stringResource(R.string.enqueue),
                                                 isEnabled = songs.isNotEmpty(),
                                                 onClick = {
                                                     menuState.hide()
@@ -189,6 +190,7 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(

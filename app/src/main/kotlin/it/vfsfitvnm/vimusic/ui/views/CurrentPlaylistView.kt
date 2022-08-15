@@ -34,10 +34,12 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.valentinilk.shimmer.shimmer
 import it.vfsfitvnm.reordering.rememberReorderingState
 import it.vfsfitvnm.reordering.verticalDragAfterLongPressToReorder
+import it.vfsfitvnm.reordering.verticalDragToReorder
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
@@ -102,6 +104,7 @@ fun CurrentPlaylistView(
                 val isPlayingThisMediaItem = mediaItemIndex == window.firstPeriodIndex
 
                 SongItem(
+                    swipeShow = false,
                     mediaItem = window.mediaItem,
                     thumbnailSize = thumbnailSize,
                     onClick = {
@@ -171,6 +174,7 @@ fun CurrentPlaylistView(
 //                        .animateItemPlacement()
                         .verticalDragAfterLongPressToReorder(
                             reorderingState = reorderingState,
+                            lazyListState = lazyListState,
                             index = window.firstPeriodIndex,
                             onDragStart = {
                                 hapticFeedback.performHapticFeedback(
@@ -226,7 +230,6 @@ fun CurrentPlaylistView(
                     .align(Alignment.CenterStart)
                     .padding(all = 8.dp)
             )
-
             Image(
                 painter = painterResource(R.drawable.chevron_down),
                 contentDescription = null,
@@ -235,7 +238,6 @@ fun CurrentPlaylistView(
                     .align(Alignment.Center)
                     .size(18.dp)
             )
-
             Image(
                 painter = painterResource(R.drawable.shuffle),
                 contentDescription = null,
