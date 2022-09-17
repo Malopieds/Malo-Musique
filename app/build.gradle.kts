@@ -12,11 +12,11 @@ android {
     compileSdk = 33
 
     defaultConfig {
-        applicationId = "it.vfsfitvnm.vimusic"
+        applicationId = "com.vfsfitvnm.vimusic"
         minSdk = 21
         targetSdk = 32
         versionCode = 15
-        versionName = "0.4.3"
+        versionName = "0.4.4"
     }
 
     splits {
@@ -37,7 +37,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            manifestPlaceholders["appName"] = "ViMusic"
+            manifestPlaceholders["appName"] = "Malo Music"
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -95,6 +95,9 @@ dependencies {
 
     implementation(projects.youtubeMusic)
     implementation(projects.kugou)
+
+    implementation("androidx.palette:palette:1.0.0")
+    implementation("de.charlex.compose:revealswipe:1.0.0")
 
     coreLibraryDesugaring(libs.desugaring)
 }

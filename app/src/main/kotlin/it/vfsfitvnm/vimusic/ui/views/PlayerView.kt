@@ -2,15 +2,19 @@ package it.vfsfitvnm.vimusic.ui.views
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Bitmap
 import android.media.audiofx.AudioEffect
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -48,10 +54,15 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.drawable.toBitmap
 import androidx.media3.common.Player
+import androidx.palette.graphics.Palette
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
+import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
 import it.vfsfitvnm.vimusic.ui.components.BottomSheet
 import it.vfsfitvnm.vimusic.ui.components.BottomSheetState
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
@@ -63,17 +74,14 @@ import it.vfsfitvnm.vimusic.ui.styling.collapsedPlayerProgressBar
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.player.Controls
 import it.vfsfitvnm.vimusic.ui.views.player.Thumbnail
-import it.vfsfitvnm.vimusic.utils.rememberMediaItem
-import it.vfsfitvnm.vimusic.utils.rememberPositionAndDuration
-import it.vfsfitvnm.vimusic.utils.rememberShouldBePlaying
-import it.vfsfitvnm.vimusic.utils.seamlessPlay
-import it.vfsfitvnm.vimusic.utils.secondary
-import it.vfsfitvnm.vimusic.utils.semiBold
-import it.vfsfitvnm.vimusic.utils.thumbnail
+import it.vfsfitvnm.vimusic.utils.*
 import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
 import kotlin.math.absoluteValue
+import androidx.compose.ui.graphics.Color
+import androidx.core.graphics.toColor
 
 @ExperimentalFoundationApi
+@RequiresApi(Build.VERSION_CODES.O)
 @ExperimentalAnimationApi
 @Composable
 fun PlayerView(
@@ -97,6 +105,8 @@ fun PlayerView(
     val shouldBePlaying by rememberShouldBePlaying(binder.player)
     val positionAndDuration by rememberPositionAndDuration(binder.player)
 
+    var xOffset = 0f
+
     BottomSheet(
         state = layoutState,
         modifier = modifier,
@@ -109,6 +119,24 @@ fun PlayerView(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.Top,
                 modifier = Modifier
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                xOffset = 0f
+                            },
+                            onDragEnd = {
+                                if (xOffset >= 30) {
+                                    binder.player.seekToPreviousMediaItem()
+                                } else if (xOffset <= -30) {
+                                    binder.player.seekToNextMediaItem()
+                                }
+                            }
+                        ) { change, dragAmount ->
+                            change.consume()
+
+                            xOffset += dragAmount
+                        }
+                    }
                     .background(colorPalette.background1)
                     .fillMaxSize()
                     .navigationBarsPadding()
@@ -163,7 +191,6 @@ fun PlayerView(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-
                 Spacer(
                     modifier = Modifier
                         .width(2.dp)
@@ -273,7 +300,8 @@ fun PlayerView(
                         modifier = Modifier
                             .padding(vertical = 8.dp)
                             .fillMaxHeight()
-                            .weight(1f)
+                            .weight(1f),
+                        onGlobalRouteEmitted = layoutState::collapseSoft
                     )
                 }
             }
@@ -315,7 +343,8 @@ fun PlayerView(
                         modifier = Modifier
                             .padding(vertical = 8.dp)
                             .fillMaxWidth()
-                            .weight(1f)
+                            .weight(1f),
+                        onGlobalRouteEmitted = layoutState::collapseSoft
                     )
                 }
             }
@@ -395,7 +424,6 @@ fun PlayerView(
                             .padding(all = 8.dp)
                             .size(20.dp)
                     )
-
                     Spacer(
                         modifier = Modifier
                             .width(4.dp)

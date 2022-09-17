@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -220,7 +221,6 @@ fun HomeScreen() {
                                 .badge(color = colorPalette.red, isDisplayed = isFirstLaunch)
                                 .size(24.dp)
                         )
-
                         Image(
                             painter = painterResource(R.drawable.search),
                             contentDescription = null,
@@ -242,7 +242,7 @@ fun HomeScreen() {
                             .padding(top = 16.dp)
                     ) {
                         BasicText(
-                            text = "Your playlists",
+                            text = stringResource(R.string.your_playlists),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -280,7 +280,7 @@ fun HomeScreen() {
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "NAME",
+                                        text = stringResource(R.string.name),
                                         isSelected = playlistSortBy == PlaylistSortBy.Name,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -289,7 +289,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = playlistSortBy == PlaylistSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -298,7 +298,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "SONG COUNT",
+                                        text = stringResource(R.string.song_count),
                                         isSelected = playlistSortBy == PlaylistSortBy.SongCount,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -312,8 +312,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -326,8 +326,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistGridExpanded) {
-                                            true -> "COLLAPSE"
-                                            false -> "EXPAND"
+                                            true -> stringResource(R.string.collapse)
+                                            false -> stringResource(R.string.compact)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -354,7 +354,7 @@ fun HomeScreen() {
                             BuiltInPlaylistItem(
                                 icon = R.drawable.heart,
                                 colorTint = colorPalette.red,
-                                name = "Favorites",
+                                name = stringResource(R.string.fav),
                                 modifier = Modifier
                                     .animateItemPlacement()
                                     .padding(all = 8.dp)
@@ -370,7 +370,7 @@ fun HomeScreen() {
                             BuiltInPlaylistItem(
                                 icon = R.drawable.airplane,
                                 colorTint = colorPalette.blue,
-                                name = "Offline",
+                                name = stringResource(R.string.offline),
                                 modifier = Modifier
                                     .animateItemPlacement()
                                     .padding(all = 8.dp)
@@ -412,7 +412,7 @@ fun HomeScreen() {
                             .padding(top = 32.dp)
                     ) {
                         BasicText(
-                            text = "Songs",
+                            text = stringResource(R.string.songs),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -461,7 +461,7 @@ fun HomeScreen() {
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "PLAY TIME",
+                                        text = stringResource(R.string.play_time),
                                         isSelected = songSortBy == SongSortBy.PlayTime,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -470,7 +470,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "TITLE",
+                                        text = stringResource(R.string.title),
                                         isSelected = songSortBy == SongSortBy.Title,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -479,7 +479,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = songSortBy == SongSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -493,8 +493,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (songSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -515,6 +515,7 @@ fun HomeScreen() {
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
