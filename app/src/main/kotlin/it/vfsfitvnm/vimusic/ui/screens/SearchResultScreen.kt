@@ -7,14 +7,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -36,9 +38,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.MediaItem
 import coil.compose.AsyncImage
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
@@ -54,7 +58,9 @@ import it.vfsfitvnm.vimusic.ui.components.themed.TextPlaceholder
 import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.ui.styling.shimmer
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.color
@@ -127,9 +133,9 @@ fun SearchResultScreen(query: String, onSearchAgain: () -> Unit) {
             LazyColumn(
                 state = lazyListState,
                 horizontalAlignment = Alignment.CenterHorizontally,
-                contentPadding = PaddingValues(bottom = Dimensions.collapsedPlayer),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -175,34 +181,34 @@ fun SearchResultScreen(query: String, onSearchAgain: () -> Unit) {
                     ChipGroup(
                         items = listOf(
                             ChipItem(
-                                text = "Songs",
+                                text = stringResource(R.string.songs),
                                 value = YouTube.Item.Song.Filter.value
                             ),
                             ChipItem(
-                                text = "Albums",
+                                text = stringResource(R.string.albums),
                                 value = YouTube.Item.Album.Filter.value
                             ),
                             ChipItem(
-                                text = "Artists",
+                                text = stringResource(R.string.artists),
                                 value = YouTube.Item.Artist.Filter.value
                             ),
                             ChipItem(
-                                text = "Videos",
+                                text = stringResource(R.string.videos),
                                 value = YouTube.Item.Video.Filter.value
                             ),
                             ChipItem(
-                                text = "Playlists",
+                                text = stringResource(R.string.playlists),
                                 value = YouTube.Item.CommunityPlaylist.Filter.value
                             ),
                             ChipItem(
-                                text = "Featured playlists",
+                                text = stringResource(R.string.featured_playlists),
                                 value = YouTube.Item.FeaturedPlaylist.Filter.value
                             ),
                         ),
                         value = searchFilter,
-                        selectedBackgroundColor = colorPalette.primaryContainer,
-                        unselectedBackgroundColor = colorPalette.lightBackground,
-                        selectedTextStyle = typography.xs.medium.color(colorPalette.onPrimaryContainer),
+                        selectedBackgroundColor = colorPalette.accent,
+                        unselectedBackgroundColor = colorPalette.background1,
+                        selectedTextStyle = typography.xs.medium.color(colorPalette.onAccent),
                         unselectedTextStyle = typography.xs.medium,
                         shape = RoundedCornerShape(36.dp),
                         onValueChanged = {
@@ -260,8 +266,8 @@ fun SearchResultScreen(query: String, onSearchAgain: () -> Unit) {
                     if (items.isEmpty()) {
                         item {
                             TextCard(icon = R.drawable.sad) {
-                                Title(text = "No results found")
-                                Text(text = "Please try a different query or category.")
+                                Title(text = stringResource(R.string.no_results))
+                                Text(text = stringResource(R.string.other_category))
                             }
                         }
                     }
@@ -281,7 +287,7 @@ fun SmallSongItemShimmer(
     thumbnailSizeDp: Dp,
     modifier: Modifier = Modifier
 ) {
-    val (colorPalette) = LocalAppearance.current
+    val (colorPalette, _, thumbnailShape) = LocalAppearance.current
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -290,7 +296,7 @@ fun SmallSongItemShimmer(
     ) {
         Spacer(
             modifier = Modifier
-                .background(color = colorPalette.darkGray, shape = ThumbnailRoundness.shape)
+                .background(color = colorPalette.shimmer, shape = thumbnailShape)
                 .size(thumbnailSizeDp)
         )
 
@@ -315,7 +321,7 @@ fun SmallArtistItemShimmer(
     ) {
         Spacer(
             modifier = Modifier
-                .background(color = colorPalette.darkGray, shape = CircleShape)
+                .background(color = colorPalette.shimmer, shape = CircleShape)
                 .size(thumbnailSizeDp)
         )
 
@@ -397,6 +403,8 @@ fun SmallSongItem(
         title = song.info.name,
         authors = song.authors.joinToString("") { it.name },
         durationText = song.durationText,
+        mediaItem = song.asMediaItem,
+        swipeShow = true,
         onClick = onClick,
         menuContent = {
             NonQueuedMediaItemMenu(mediaItem = song.asMediaItem)
@@ -419,6 +427,8 @@ fun SmallVideoItem(
         authors = (if (video.isOfficialMusicVideo) video.authors else video.views)
             .joinToString("") { it.name },
         durationText = video.durationText,
+        mediaItem = MediaItem.EMPTY,
+        swipeShow = false,
         onClick = onClick,
         menuContent = {
             NonQueuedMediaItemMenu(mediaItem = video.asMediaItem)
@@ -471,7 +481,7 @@ fun SmallPlaylistItem(
 
         playlist.songCount?.let { songCount ->
             BasicText(
-                text = "$songCount songs",
+                text = "$songCount" + stringResource(R.string.songs),
                 style = typography.xxs.secondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

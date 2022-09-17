@@ -6,13 +6,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -25,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.route.RouteHandler
@@ -43,6 +46,7 @@ import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
@@ -74,7 +78,7 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                     BuiltInPlaylist.Offline -> Database.songsWithContentLength().map { songs ->
                         songs.filter { song ->
                             song.contentLength?.let {
-                                binder?.cache?.isCached(song.song.id, 0, song.contentLength)
+                                binder?.cache?.isCached(song.id, 0, song.contentLength)
                             } ?: false
                         }
                     }
@@ -83,9 +87,9 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = Dimensions.collapsedPlayer),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -113,14 +117,14 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                     ) {
                         BasicText(
                             text = when (builtInPlaylist) {
-                                BuiltInPlaylist.Favorites -> "Favorites"
-                                BuiltInPlaylist.Offline -> "Offline"
+                                BuiltInPlaylist.Favorites -> stringResource(R.string.fav)
+                                BuiltInPlaylist.Offline -> stringResource(R.string.offline)
                             },
                             style = typography.m.semiBold
                         )
 
                         BasicText(
-                            text = "${songs.size} songs",
+                            text = "${songs.size} " + stringResource(R.string.songs),
                             style = typography.xxs.semiBold.secondary
                         )
                     }
@@ -162,7 +166,7 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
                                         Menu {
                                             MenuEntry(
                                                 icon = R.drawable.enqueue,
-                                                text = "Enqueue",
+                                                text = stringResource(R.string.enqueue),
                                                 isEnabled = songs.isNotEmpty(),
                                                 onClick = {
                                                     menuState.hide()
@@ -180,12 +184,13 @@ fun BuiltInPlaylistScreen(builtInPlaylist: BuiltInPlaylist) {
 
                 itemsIndexed(
                     items = songs,
-                    key = { _, song -> song.song.id },
+                    key = { _, song -> song.id },
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(

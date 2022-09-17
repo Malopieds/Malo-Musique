@@ -6,13 +6,15 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -30,6 +32,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.reordering.rememberReorderingState
@@ -54,6 +57,7 @@ import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
@@ -92,7 +96,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
             if (isRenaming) {
                 TextFieldDialog(
-                    hintText = "Enter the playlist name",
+                    hintText = stringResource(R.string.enter_playlist_name),
                     initialTextInput = playlistWithSongs.playlist.name,
                     onDismiss = {
                         isRenaming = false
@@ -111,7 +115,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
             if (isDeleting) {
                 ConfirmationDialog(
-                    text = "Do you really want to delete this playlist?",
+                    text = stringResource(R.string.confirm_delete_playlist),
                     onDismiss = {
                         isDeleting = false
                     },
@@ -126,9 +130,9 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = Dimensions.collapsedPlayer),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -160,7 +164,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                         )
 
                         BasicText(
-                            text = "${playlistWithSongs.songs.size} songs",
+                            text = "${playlistWithSongs.songs.size}" + stringResource(R.string.songs),
                             style = typography.xxs.semiBold.secondary
                         )
                     }
@@ -202,7 +206,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                         Menu {
                                             MenuEntry(
                                                 icon = R.drawable.enqueue,
-                                                text = "Enqueue",
+                                                text = stringResource(R.string.enqueue),
                                                 isEnabled = playlistWithSongs.songs.isNotEmpty(),
                                                 onClick = {
                                                     menuState.hide()
@@ -216,7 +220,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                                             MenuEntry(
                                                 icon = R.drawable.pencil,
-                                                text = "Rename",
+                                                text = stringResource(R.string.rename),
                                                 onClick = {
                                                     menuState.hide()
                                                     isRenaming = true
@@ -225,7 +229,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                                             MenuEntry(
                                                 icon = R.drawable.trash,
-                                                text = "Delete",
+                                                text = stringResource(R.string.delete),
                                                 onClick = {
                                                     menuState.hide()
                                                     isDeleting = true
@@ -242,12 +246,13 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                 itemsIndexed(
                     items = playlistWithSongs.songs,
-                    key = { _, song -> song.song.id },
+                    key = { _, song -> song.id },
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -277,6 +282,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                         modifier = Modifier
                             .verticalDragAfterLongPressToReorder(
                                 reorderingState = reorderingState,
+                                lazyListState = lazyListState,
                                 index = index,
                                 onDragStart = {
                                     hapticFeedback.performHapticFeedback(
@@ -301,7 +307,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                                         Database.update(
                                             SongPlaylistMap(
-                                                songId = playlistWithSongs.songs[index].song.id,
+                                                songId = playlistWithSongs.songs[index].id,
                                                 playlistId = playlistWithSongs.playlist.id,
                                                 position = reachedIndex
                                             )

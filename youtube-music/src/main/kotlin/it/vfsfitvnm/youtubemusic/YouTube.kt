@@ -1,25 +1,42 @@
 package it.vfsfitvnm.youtubemusic
 
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.engine.cio.*
-import io.ktor.client.plugins.*
-import io.ktor.client.plugins.compression.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import it.vfsfitvnm.youtubemusic.models.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.BrowserUserAgent
+import io.ktor.client.plugins.compression.ContentEncoding
+import io.ktor.client.plugins.compression.brotli
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.Url
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
+import it.vfsfitvnm.youtubemusic.models.BrowseResponse
+import it.vfsfitvnm.youtubemusic.models.ContinuationResponse
+import it.vfsfitvnm.youtubemusic.models.GetQueueResponse
+import it.vfsfitvnm.youtubemusic.models.GetSearchSuggestionsResponse
+import it.vfsfitvnm.youtubemusic.models.MusicResponsiveListItemRenderer
+import it.vfsfitvnm.youtubemusic.models.MusicShelfRenderer
+import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
+import it.vfsfitvnm.youtubemusic.models.NextResponse
+import it.vfsfitvnm.youtubemusic.models.PlayerResponse
+import it.vfsfitvnm.youtubemusic.models.Runs
+import it.vfsfitvnm.youtubemusic.models.SearchResponse
+import it.vfsfitvnm.youtubemusic.models.ThumbnailRenderer
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-
 
 object YouTube {
     private const val Key = "AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8"
 
     @OptIn(ExperimentalSerializationApi::class)
-    val client = HttpClient(CIO) {
+    val client = HttpClient(OkHttp) {
         BrowserUserAgent()
 
         expectSuccess = true
@@ -510,7 +527,7 @@ object YouTube {
                     return@runCatching playerResponse
                 }
 
-                val audioStreams = client.get("https://pipedapi.kavin.rocks/streams/$videoId") {
+                val audioStreams = client.get("https://watchapi.whatever.social/streams/$videoId") {
                     contentType(ContentType.Application.Json)
                 }.body<PipedResponse>().audioStreams
 
@@ -631,6 +648,9 @@ object YouTube {
                 .tabs
 
             NextResult(
+                playlistId = playlistId,
+                playlistSetVideoId = playlistSetVideoId,
+                params = params,
                 continuation = (tabs
                     .getOrNull(0)
                     ?.tabRenderer
@@ -652,6 +672,23 @@ object YouTube {
                     ?: body.continuationContents)
                     ?.playlistPanelRenderer
                     ?.contents
+                    ?.also {
+                        // TODO: we should parse the MusicResponsiveListItemRenderer menu so we can
+                        //  avoid an extra network request
+                        it.lastOrNull()
+                            ?.automixPreviewVideoRenderer
+                            ?.content
+                            ?.automixPlaylistVideoRenderer
+                            ?.navigationEndpoint
+                            ?.watchPlaylistEndpoint
+                            ?.let { endpoint ->
+                                return next(
+                                    videoId = videoId,
+                                    playlistId = endpoint.playlistId,
+                                    params = endpoint.params
+                                )
+                            }
+                    }
                     ?.mapNotNull { it.playlistPanelVideoRenderer }
                     ?.mapNotNull { renderer ->
                         Item.Song(
@@ -706,6 +743,9 @@ object YouTube {
 
     data class NextResult(
         val continuation: String?,
+        val playlistId: String?,
+        val params: String? = null,
+        val playlistSetVideoId: String? = null,
         val items: List<Item.Song>?,
         val lyrics: Lyrics?,
         val related: Related?,
@@ -759,6 +799,8 @@ object YouTube {
         val items: List<Item>?,
         val url: String?,
         val continuation: String?,
+        val numberItems: String?,
+        val length: String?,
     ) {
         data class Item(
             val info: Info<NavigationEndpoint.Endpoint.Watch>,
@@ -839,47 +881,26 @@ object YouTube {
                                 ?.continuation
                         ).next()
                     }
-                }?.recoverIfCancelled()?.getOrNull()
-            } ?: this
-        }
-
-        suspend fun withAudioSources(): PlaylistOrAlbum {
-            @Serializable
-            data class RelatedStream(
-                val url: String,
-                val title: String
-            )
-
-            @Serializable
-            data class Response(
-                val relatedStreams: List<RelatedStream>
-            )
-
-            return url?.replace("https://music.youtube.com/playlist?list=", "https://pipedapi.kavin.rocks/playlists/")?.let { url ->
-                val sources = client.get(url).body<Response>().relatedStreams
-
-                copy(
-                    items = items?.mapIndexed { index, item ->
-                        if (item.info.endpoint?.type != "MUSIC_VIDEO_TYPE_ATV") {
-                            sources.getOrNull(index)?.let { source ->
-                                item.copy(
-                                    info = item.info.copy(
-                                        endpoint = item.info.endpoint?.copy(
-                                            videoId = source.url.removePrefix("/watch?v=")
-                                        )
-                                    )
-                                )
-                            } ?: item
-                        } else {
-                            item
-                        }
-                    }
-                )
+                }.recoverIfCancelled()?.getOrNull()
             } ?: this
         }
     }
 
-    suspend fun playlistOrAlbum(browseId: String): Result<PlaylistOrAlbum>? {
+    suspend fun album(browseId: String): Result<PlaylistOrAlbum>? {
+        return playlistOrAlbum(browseId)?.map { album ->
+           album.url?.let { Url(it).parameters["list"] }?.let { playlistId ->
+                playlistOrAlbum("VL$playlistId")?.getOrNull()?.let { playlist ->
+                    album.copy(items = playlist.items)
+                }
+            } ?: album
+        }
+    }
+
+    suspend fun playlist(browseId: String): Result<PlaylistOrAlbum>? {
+        return playlistOrAlbum(browseId)
+    }
+
+    private suspend fun playlistOrAlbum(browseId: String): Result<PlaylistOrAlbum>? {
         return browse(browseId)?.map { body ->
             PlaylistOrAlbum(
                 title = body
@@ -944,7 +965,21 @@ object YouTube {
                     ?.continuations
                     ?.firstOrNull()
                     ?.nextRadioContinuationData
-                    ?.continuation
+                    ?.continuation,
+                numberItems = body
+                    .header
+                    ?.musicDetailHeaderRenderer
+                    ?.secondSubtitle
+                    ?.runs
+                    ?.get(0)
+                    ?.text,
+                length = body
+                    .header?.musicDetailHeaderRenderer
+                    ?.secondSubtitle
+                    ?.runs
+                    ?.get(2)
+                    ?.text
+
             )
         }
     }
@@ -954,11 +989,13 @@ object YouTube {
         val description: String?,
         val thumbnail: ThumbnailRenderer.MusicThumbnailRenderer.Thumbnail.Thumbnail?,
         val shuffleEndpoint: NavigationEndpoint.Endpoint.Watch?,
-        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?
+        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?,
+        val songs: List<String>
     )
 
     suspend fun artist(browseId: String): Result<Artist>? {
         return browse(browseId)?.map { body ->
+            println(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)?.text)
             Artist(
                 name = body
                     .header
@@ -992,9 +1029,74 @@ object YouTube {
                     ?.startRadioButton
                     ?.buttonRenderer
                     ?.navigationEndpoint
-                    ?.watchEndpoint
+                    ?.watchEndpoint,
+                songs = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
+            )
+        }
+    }
+
+    data class NewRalease(
+        val name: List<PlaylistOrAlbum>?,
+    )
+
+    suspend fun newRelease(): Result<NewRalease>?{
+        return browse("FEmusic_new_releases")?.map { body ->
+            print(body.contents
+                ?.singleColumnBrowseResultsRenderer
+                ?.tabs
+                ?.get(0)
+                ?.tabRenderer
+                ?.content
+                ?.sectionListRenderer
+                ?.contents
+                ?.get(0)
+                ?.musicCarouselShelfRenderer
+                ?.contents)
+            val playlistNewRelease: List<PlaylistOrAlbum> = emptyList()
+            val listContent = body
+                .contents
+                .singleColumnBrowseResultsRenderer
+                ?.tabs
+                ?.get(0)
+                ?.tabRenderer
+                ?.content
+                ?.sectionListRenderer
+                ?.contents
+                ?.get(0)
+                ?.musicCarouselShelfRenderer
+                ?.contents?.get(0)
+            ?.musicTwoRowItemRenderer
+                ?.navigationEndpoint
+                ?.browseEndpoint
+                ?.browseId.toString()
+            print(listContent)
+            /*if (listContent != null) {
+                for (item in listContent){
+                    val browseId = item
+                        .musicTwoRowItemRenderer
+                        ?.navigationEndpoint
+                        ?.browseEndpoint
+                        ?.browseId
+                    val playlistOrAlbum = playlistOrAlbum(browseId ?: "")
+                    print(playlistOrAlbum)
+                    playlistNewRelease + playlistOrAlbum
+
+
+                }
+            }*/
+            NewRalease(playlistNewRelease)
+        }
+    }
+
+    data class ArtistSongs(
+        val name: List<String>,
+    )
+
+    suspend fun artistSongs(browseId: String): Result<ArtistSongs>? {
+        return browse(browseId)?.map { body ->
+            ArtistSongs(
+                name = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
             )
         }
     }
 }
-

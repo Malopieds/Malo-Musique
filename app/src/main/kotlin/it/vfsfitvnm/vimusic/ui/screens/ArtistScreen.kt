@@ -8,15 +8,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +47,7 @@ import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Artist
+import it.vfsfitvnm.vimusic.models.ArtistSongs
 import it.vfsfitvnm.vimusic.models.DetailedSong
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
@@ -53,7 +57,9 @@ import it.vfsfitvnm.vimusic.ui.components.themed.TextPlaceholder
 import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.ui.styling.shimmer
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
@@ -64,9 +70,11 @@ import it.vfsfitvnm.vimusic.utils.thumbnail
 import it.vfsfitvnm.youtubemusic.YouTube
 import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 @ExperimentalAnimationApi
@@ -93,16 +101,16 @@ fun ArtistScreen(browseId: String) {
 
             val songThumbnailSizePx = Dimensions.thumbnails.song.px
 
-            val songs by remember(browseId) {
+            val localSongs by remember(browseId) {
                 Database.artistSongs(browseId)
             }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = 72.dp),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -207,20 +215,20 @@ fun ArtistScreen(browseId: String) {
                 }
 
                 item("songs") {
-                    if (songs.isEmpty()) return@item
+                    if (localSongs.isEmpty()) return@item
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier
-                            .background(colorPalette.background)
+                            .background(colorPalette.background0)
                             .zIndex(1f)
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp)
                             .padding(top = 32.dp)
                     ) {
                         BasicText(
-                            text = "Local tracks",
+                            text = stringResource(R.string.local_tracks),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .padding(horizontal = 8.dp)
@@ -231,10 +239,10 @@ fun ArtistScreen(browseId: String) {
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colorPalette.text),
                             modifier = Modifier
-                                .clickable(enabled = songs.isNotEmpty()) {
+                                .clickable(enabled = localSongs.isNotEmpty()) {
                                     binder?.stopRadio()
                                     binder?.player?.forcePlayFromBeginning(
-                                        songs
+                                        localSongs
                                             .shuffled()
                                             .map(DetailedSong::asMediaItem)
                                     )
@@ -245,18 +253,20 @@ fun ArtistScreen(browseId: String) {
                     }
                 }
 
+
                 itemsIndexed(
-                    items = songs,
-                    key = { _, song -> song.song.id },
+                    items = localSongs,
+                    key = { _, song -> song.id },
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
                         song = song,
                         thumbnailSize = songThumbnailSizePx,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
-                                songs.map(DetailedSong::asMediaItem),
+                                localSongs.map(DetailedSong::asMediaItem),
                                 index
                             )
                         },
@@ -271,13 +281,13 @@ fun ArtistScreen(browseId: String) {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier
-                                .background(colorPalette.background)
+                                .background(colorPalette.background0)
                                 .fillMaxWidth()
                                 .padding(horizontal = 8.dp)
                                 .padding(top = 32.dp)
                         ) {
                             BasicText(
-                                text = "Information",
+                                text = stringResource(R.string.information),
                                 style = typography.m.semiBold,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
@@ -295,14 +305,14 @@ fun ArtistScreen(browseId: String) {
                                         .width(48.dp)
                                 ) {
                                     drawLine(
-                                        color = colorPalette.backgroundContainer,
+                                        color = colorPalette.background2,
                                         start = size.center.copy(y = 0f),
                                         end = size.center.copy(y = size.height),
                                         strokeWidth = 2.dp.toPx()
                                     )
 
                                     drawCircle(
-                                        color = colorPalette.backgroundContainer,
+                                        color = colorPalette.background2,
                                         center = size.center.copy(y = size.height),
                                         radius = 4.dp.toPx()
                                     )
@@ -326,6 +336,7 @@ fun ArtistScreen(browseId: String) {
     }
 }
 
+
 @Composable
 private fun LoadingOrError(
     errorMessage: String? = null,
@@ -340,7 +351,7 @@ private fun LoadingOrError(
     ) {
         Spacer(
             modifier = Modifier
-                .background(color = colorPalette.darkGray, shape = CircleShape)
+                .background(color = colorPalette.shimmer, shape = CircleShape)
                 .size(Dimensions.thumbnails.artist)
         )
 
@@ -372,7 +383,7 @@ private suspend fun fetchArtist(browseId: String): Result<Artist>? {
                 shufflePlaylistId = youtubeArtist.shuffleEndpoint?.playlistId,
                 radioVideoId = youtubeArtist.radioEndpoint?.videoId,
                 radioPlaylistId = youtubeArtist.radioEndpoint?.playlistId,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
             ).also(Database::upsert)
         }
 }

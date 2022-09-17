@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -23,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
@@ -39,6 +41,7 @@ import it.vfsfitvnm.vimusic.ui.screens.SettingsEntryGroupText
 import it.vfsfitvnm.vimusic.ui.screens.SettingsGroupDescription
 import it.vfsfitvnm.vimusic.ui.screens.SettingsTitle
 import it.vfsfitvnm.vimusic.ui.screens.globalRoutes
+import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.intent
 import java.io.FileInputStream
@@ -100,7 +103,7 @@ fun BackupAndRestoreScreen() {
 
             if (isShowingRestoreDialog) {
                 ConfirmationDialog(
-                    text = "The application will automatically close itself to avoid problems after restoring the database.",
+                    text = stringResource(R.string.restore_dialog),
                     onDismiss = {
                         isShowingRestoreDialog = false
                     },
@@ -119,10 +122,11 @@ fun BackupAndRestoreScreen() {
 
             Column(
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(bottom = 72.dp)
+                    .padding(bottom = Dimensions.collapsedPlayer)
+                    .systemBarsPadding()
             ) {
                 TopAppBar(
                     modifier = Modifier
@@ -139,15 +143,15 @@ fun BackupAndRestoreScreen() {
                     )
                 }
 
-                SettingsTitle(text = "Backup & Restore")
+                SettingsTitle(text = stringResource(R.string.backup_restore))
 
-                SettingsEntryGroupText(title = "BACKUP")
+                SettingsEntryGroupText(title = stringResource(R.string.backup))
 
-                SettingsGroupDescription(text = "Personal preferences (i.e. the theme mode) and the cache are excluded.")
+                SettingsGroupDescription(text = stringResource(R.string.backup_sub_desc))
 
                 SettingsEntry(
-                    title = "Backup",
-                    text = "Export the database to the external storage",
+                    title = stringResource(R.string.backup),
+                    text = stringResource(R.string.backup_export),
                     onClick = {
                         @SuppressLint("SimpleDateFormat")
                         val dateFormat = SimpleDateFormat("yyyyMMddHHmmss")
@@ -155,13 +159,13 @@ fun BackupAndRestoreScreen() {
                     }
                 )
 
-                SettingsEntryGroupText(title = "RESTORE")
+                SettingsEntryGroupText(title = stringResource(R.string.restore))
 
-                SettingsGroupDescription(text = "Existing data will be overwritten.")
+                SettingsGroupDescription(text = stringResource(R.string.restore_warning))
 
                 SettingsEntry(
-                    title = "Restore",
-                    text = "Import the database from the external storage",
+                    title = stringResource(R.string.restore),
+                    text = stringResource(R.string.restore_import),
                     onClick = {
                         isShowingRestoreDialog = true
                     }

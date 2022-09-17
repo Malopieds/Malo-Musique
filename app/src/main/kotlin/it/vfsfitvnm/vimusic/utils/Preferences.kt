@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.edit
 
+const val colorPaletteNameKey = "colorPaletteName"
 const val colorPaletteModeKey = "colorPaletteMode"
 const val thumbnailRoundnessKey = "thumbnailRoundness"
 const val coilDiskCacheMaxSizeKey = "coilDiskCacheMaxSize"
@@ -26,6 +27,8 @@ const val repeatModeKey = "repeatMode"
 const val skipSilenceKey = "skipSilence"
 const val volumeNormalizationKey = "volumeNormalization"
 const val persistentQueueKey = "persistentQueue"
+const val isShowingSynchronizedLyricsKey = "isShowingSynchronizedLyrics"
+const val isShowingThumbnailInLockscreenKey = "isShowingThumbnailInLockscreen"
 
 inline fun <reified T : Enum<T>> SharedPreferences.getEnum(
     key: String,

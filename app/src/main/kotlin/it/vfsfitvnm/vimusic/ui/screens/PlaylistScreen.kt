@@ -9,15 +9,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -33,13 +35,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.media3.common.MediaItem
 import coil.compose.AsyncImage
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
@@ -59,7 +64,9 @@ import it.vfsfitvnm.vimusic.ui.components.themed.TextPlaceholder
 import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.ui.styling.shimmer
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.bold
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.enqueue
@@ -97,17 +104,19 @@ fun PlaylistScreen(browseId: String) {
 
             val onLoad = relaunchableEffect(Unit) {
                 playlist = withContext(Dispatchers.IO) {
-                    YouTube.playlistOrAlbum(browseId)?.map {
+                    YouTube.playlist(browseId)?.map {
                         it.next()
+                    }?.map { playlist ->
+                        playlist.copy(items = playlist.items?.filter { it.info.endpoint != null })
                     }
                 }
             }
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = 72.dp),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -220,7 +229,7 @@ fun PlaylistScreen(browseId: String) {
                                                 Menu {
                                                     MenuEntry(
                                                         icon = R.drawable.enqueue,
-                                                        text = "Enqueue",
+                                                        text = stringResource(R.string.enqueue),
                                                         onClick = {
                                                             menuState.hide()
                                                             playlist.items
@@ -240,7 +249,7 @@ fun PlaylistScreen(browseId: String) {
 
                                                     MenuEntry(
                                                         icon = R.drawable.playlist,
-                                                        text = "Import",
+                                                        text = stringResource(R.string.import_playlist),
                                                         onClick = {
                                                             menuState.hide()
                                                             transaction {
@@ -278,7 +287,7 @@ fun PlaylistScreen(browseId: String) {
 
                                                     MenuEntry(
                                                         icon = R.drawable.share_social,
-                                                        text = "Share",
+                                                        text = stringResource(R.string.share),
                                                         onClick = {
                                                             menuState.hide()
 
@@ -328,6 +337,8 @@ fun PlaylistScreen(browseId: String) {
                         authors = (song.authors
                             ?: playlist?.getOrNull()?.authors)?.joinToString("") { it.name },
                         durationText = song.durationText,
+                        mediaItem = MediaItem.EMPTY,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             playlist?.getOrNull()?.items?.mapNotNull { song ->
@@ -394,7 +405,7 @@ private fun LoadingOrError(
         ) {
             Spacer(
                 modifier = Modifier
-                    .background(color = colorPalette.darkGray, shape = ThumbnailRoundness.shape)
+                    .background(color = colorPalette.shimmer, shape = ThumbnailRoundness.shape)
                     .size(Dimensions.thumbnails.playlist)
             )
 
@@ -432,7 +443,7 @@ private fun LoadingOrError(
                     Spacer(
                         modifier = Modifier
                             .size(8.dp)
-                            .background(color = colorPalette.darkGray, shape = CircleShape)
+                            .background(color = Color.Black, shape = CircleShape)
                     )
                 }
 

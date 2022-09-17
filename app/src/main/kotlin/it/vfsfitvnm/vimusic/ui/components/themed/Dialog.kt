@@ -44,6 +44,7 @@ import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.ui.components.ChunkyButton
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.center
@@ -67,8 +69,8 @@ fun TextFieldDialog(
     onDismiss: () -> Unit,
     onDone: (String) -> Unit,
     modifier: Modifier = Modifier,
-    cancelText: String = "Cancel",
-    doneText: String = "Done",
+    cancelText: String = stringResource(R.string.cancel),
+    doneText: String = stringResource(R.string.done),
     initialTextInput: String = "",
     singleLine: Boolean = true,
     maxLines: Int = 1,
@@ -101,7 +103,7 @@ fun TextFieldDialog(
             textStyle = typography.xs.semiBold.center,
             singleLine = singleLine,
             maxLines = maxLines,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(imeAction = if (singleLine) ImeAction.Done else ImeAction.None),
             keyboardActions = KeyboardActions(
                 onDone = {
                     if (isTextInputValid(textFieldValue.text)) {
@@ -153,9 +155,9 @@ fun TextFieldDialog(
             )
 
             ChunkyButton(
-                backgroundColor = colorPalette.primaryContainer,
+                backgroundColor = colorPalette.accent,
                 text = doneText,
-                textStyle = typography.xs.semiBold.color(colorPalette.onPrimaryContainer),
+                textStyle = typography.xs.semiBold.color(colorPalette.onAccent),
                 shape = RoundedCornerShape(36.dp),
                 onClick = {
                     if (isTextInputValid(textFieldValue.text)) {
@@ -179,8 +181,8 @@ fun ConfirmationDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
-    cancelText: String = "Cancel",
-    confirmText: String = "Confirm",
+    cancelText: String = stringResource(R.string.cancel),
+    confirmText: String = stringResource(R.string.confirm),
     onCancel: () -> Unit = onDismiss
 ) {
     val (colorPalette, typography) = LocalAppearance.current
@@ -210,9 +212,9 @@ fun ConfirmationDialog(
             )
 
             ChunkyButton(
-                backgroundColor = colorPalette.primaryContainer,
+                backgroundColor = colorPalette.accent,
                 text = confirmText,
-                textStyle = typography.xs.semiBold.color(colorPalette.onPrimaryContainer),
+                textStyle = typography.xs.semiBold.color(colorPalette.onAccent),
                 shape = RoundedCornerShape(36.dp),
                 onClick = {
                     onConfirm()
@@ -242,7 +244,7 @@ inline fun DefaultDialog(
             modifier = modifier
                 .padding(all = 48.dp)
                 .background(
-                    color = colorPalette.elevatedBackground,
+                    color = colorPalette.background1,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(horizontal = 24.dp, vertical = 16.dp),
@@ -268,7 +270,7 @@ inline fun <T> ValueSelectorDialog(
             modifier = modifier
                 .padding(all = 48.dp)
                 .background(
-                    color = colorPalette.elevatedBackground,
+                    color = colorPalette.background1,
                     shape = RoundedCornerShape(8.dp)
                 )
                 .padding(vertical = 16.dp),
@@ -305,12 +307,12 @@ inline fun <T> ValueSelectorDialog(
                                 modifier = Modifier
                                     .size(18.dp)
                                     .background(
-                                        color = colorPalette.primaryContainer,
+                                        color = colorPalette.accent,
                                         shape = CircleShape
                                     )
                             ) {
                                 drawCircle(
-                                    color = colorPalette.onPrimaryContainer,
+                                    color = colorPalette.onAccent,
                                     radius = 4.dp.toPx(),
                                     center = size.center,
                                     shadow = Shadow(
@@ -341,7 +343,7 @@ inline fun <T> ValueSelectorDialog(
             }
 
             BasicText(
-                text = "Cancel",
+                text = stringResource(R.string.cancel),
                 style = typography.xs.semiBold,
                 modifier = Modifier
                     .padding(horizontal = 24.dp)

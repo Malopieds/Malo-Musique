@@ -1,6 +1,8 @@
 package it.vfsfitvnm.vimusic.ui.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateContentSize
@@ -14,11 +16,14 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
@@ -38,25 +43,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.asAndroidPath
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.core.content.res.ResourcesCompat
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
@@ -66,9 +62,7 @@ import it.vfsfitvnm.vimusic.enums.PlaylistSortBy
 import it.vfsfitvnm.vimusic.enums.SongSortBy
 import it.vfsfitvnm.vimusic.enums.SortOrder
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
-import it.vfsfitvnm.vimusic.models.DetailedSong
-import it.vfsfitvnm.vimusic.models.Playlist
-import it.vfsfitvnm.vimusic.models.SearchQuery
+import it.vfsfitvnm.vimusic.models.*
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
 import it.vfsfitvnm.vimusic.ui.components.themed.DropDownSection
@@ -83,22 +77,15 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.BuiltInPlaylistItem
 import it.vfsfitvnm.vimusic.ui.views.PlaylistPreviewItem
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-import it.vfsfitvnm.vimusic.utils.asMediaItem
-import it.vfsfitvnm.vimusic.utils.center
-import it.vfsfitvnm.vimusic.utils.color
-import it.vfsfitvnm.vimusic.utils.drawCircle
-import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
-import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
-import it.vfsfitvnm.vimusic.utils.isFirstLaunchKey
-import it.vfsfitvnm.vimusic.utils.playlistGridExpandedKey
-import it.vfsfitvnm.vimusic.utils.playlistSortByKey
-import it.vfsfitvnm.vimusic.utils.playlistSortOrderKey
-import it.vfsfitvnm.vimusic.utils.rememberPreference
-import it.vfsfitvnm.vimusic.utils.semiBold
-import it.vfsfitvnm.vimusic.utils.songSortByKey
-import it.vfsfitvnm.vimusic.utils.songSortOrderKey
+import it.vfsfitvnm.vimusic.utils.*
+import it.vfsfitvnm.youtubemusic.YouTube
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
+@SuppressLint("CoroutineCreationDuringComposition")
 @ExperimentalFoundationApi
 @ExperimentalAnimationApi
 @Composable
@@ -122,6 +109,18 @@ fun HomeScreen() {
     val songCollection by remember(songSortBy, songSortOrder) {
         Database.songs(songSortBy, songSortOrder)
     }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
+
+    val browseId = "FEmusic_new_releases"
+
+    val albumResult by remember(browseId) {
+        Database.album(browseId).map { album ->
+            album
+                ?: fetchAlbum(browseId)
+        }.distinctUntilChanged()
+    }.collectAsState(initial = null, context = Dispatchers.IO)
+
+    println(albumResult)
+
 
     RouteHandler(listenToGlobalEmitter = true) {
         settingsRoute {
@@ -186,7 +185,6 @@ fun HomeScreen() {
             @Suppress("UNUSED_EXPRESSION") playlistPreviews
             @Suppress("UNUSED_EXPRESSION") songCollection
 
-            val context = LocalContext.current
             val binder = LocalPlayerServiceBinder.current
 
             val isFirstLaunch by rememberPreference(isFirstLaunchKey, true)
@@ -213,9 +211,9 @@ fun HomeScreen() {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = 72.dp),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item("topAppBar") {
@@ -228,22 +226,20 @@ fun HomeScreen() {
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colorPalette.text),
                             modifier = Modifier
-                                .clickable {
-                                    settingsRoute()
-                                }
+                                .clickable { settingsRoute() }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .run {
                                     if (isFirstLaunch) {
                                         drawBehind {
                                             drawCircle(
-                                                color = colorPalette.red,
+                                                color = colorPalette.accent,
                                                 center = Offset(
                                                     x = size.width,
                                                     y = 0.dp.toPx()
                                                 ),
                                                 radius = 4.dp.toPx(),
                                                 shadow = Shadow(
-                                                    color = colorPalette.red,
+                                                    color = colorPalette.accent,
                                                     blurRadius = 4.dp.toPx()
                                                 )
                                             )
@@ -254,89 +250,12 @@ fun HomeScreen() {
                                 }
                                 .size(24.dp)
                         )
-
-                        BasicText(
-                            text = "ViMusic",
-                            style = typography.l.semiBold,
-                            modifier = Modifier
-                                .drawWithCache {
-                                    val decorationPath = Path().apply {
-                                        with(asAndroidPath()) {
-                                            addCircle(
-                                                8.dp.toPx(),
-                                                size.center.y,
-                                                16.dp.toPx(),
-                                                android.graphics.Path.Direction.CCW
-                                            )
-                                            addCircle(
-                                                32.dp.toPx(),
-                                                -2.dp.toPx(),
-                                                8.dp.toPx(),
-                                                android.graphics.Path.Direction.CCW
-                                            )
-                                        }
-                                    }
-
-                                    if (colorPalette.isDark) {
-                                        return@drawWithCache onDrawBehind {
-                                            drawPath(
-                                                path = decorationPath,
-                                                color = colorPalette.primaryContainer
-                                            )
-                                        }
-                                    }
-
-                                    val textPaint = Paint()
-                                        .asFrameworkPaint()
-                                        .apply {
-                                            isAntiAlias = true
-                                            textSize = typography.l.fontSize.toPx()
-                                            color = colorPalette.text.toArgb()
-                                            typeface = ResourcesCompat.getFont(
-                                                context,
-                                                R.font.poppins_w500
-                                            )
-                                            textAlign = android.graphics.Paint.Align.CENTER
-                                        }
-
-                                    val textY =
-                                        ((textPaint.fontMetrics.descent - textPaint.fontMetrics.ascent) / 2) - textPaint.fontMetrics.descent
-
-                                    val textPath = Path().apply {
-                                        textPaint.getTextPath(
-                                            "ViMusic",
-                                            0,
-                                            7,
-                                            size.width / 2,
-                                            size.height / 2 + textY,
-                                            asAndroidPath()
-                                        )
-                                    }
-
-                                    onDrawWithContent {
-                                        clipPath(textPath, ClipOp.Difference) {
-                                            drawPath(
-                                                path = decorationPath,
-                                                color = colorPalette.primaryContainer
-                                            )
-                                        }
-
-                                        clipPath(decorationPath, ClipOp.Difference) {
-                                            this@onDrawWithContent.drawContent()
-                                        }
-                                    }
-                                }
-                                .padding(horizontal = 8.dp)
-                        )
-
                         Image(
                             painter = painterResource(R.drawable.search),
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colorPalette.text),
                             modifier = Modifier
-                                .clickable {
-                                    searchRoute("")
-                                }
+                                .clickable { searchRoute("") }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
                                 .size(24.dp)
                         )
@@ -352,7 +271,7 @@ fun HomeScreen() {
                             .padding(top = 16.dp)
                     ) {
                         BasicText(
-                            text = "Your playlists",
+                            text = stringResource(R.string.your_playlists),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -364,9 +283,7 @@ fun HomeScreen() {
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colorPalette.text),
                             modifier = Modifier
-                                .clickable {
-                                    isCreatingANewPlaylist = true
-                                }
+                                .clickable { isCreatingANewPlaylist = true }
                                 .padding(all = 8.dp)
                                 .size(20.dp)
                         )
@@ -381,22 +298,18 @@ fun HomeScreen() {
                                 contentDescription = null,
                                 colorFilter = ColorFilter.tint(colorPalette.text),
                                 modifier = Modifier
-                                    .clickable {
-                                        isSortMenuDisplayed = true
-                                    }
+                                    .clickable { isSortMenuDisplayed = true }
                                     .padding(horizontal = 8.dp, vertical = 8.dp)
                                     .size(20.dp)
                             )
 
                             DropdownMenu(
                                 isDisplayed = isSortMenuDisplayed,
-                                onDismissRequest = {
-                                    isSortMenuDisplayed = false
-                                }
+                                onDismissRequest = { isSortMenuDisplayed = false }
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "NAME",
+                                        text = stringResource(R.string.name),
                                         isSelected = playlistSortBy == PlaylistSortBy.Name,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -405,7 +318,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = playlistSortBy == PlaylistSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -414,7 +327,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "SONG COUNT",
+                                        text = stringResource(R.string.song_count),
                                         isSelected = playlistSortBy == PlaylistSortBy.SongCount,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -428,8 +341,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -442,8 +355,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistGridExpanded) {
-                                            true -> "EXPAND"
-                                            false -> "COMPACT"
+                                            true -> stringResource(R.string.collapse)
+                                            false -> stringResource(R.string.compact)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -470,7 +383,7 @@ fun HomeScreen() {
                             BuiltInPlaylistItem(
                                 icon = R.drawable.heart,
                                 colorTint = colorPalette.red,
-                                name = "Favorites",
+                                name = stringResource(R.string.fav),
                                 modifier = Modifier
                                     .padding(all = 8.dp)
                                     .clickable(
@@ -481,21 +394,19 @@ fun HomeScreen() {
                             )
                         }
 
-                        if (playlistGridExpanded) {
-                            item(key = "offline") {
-                                BuiltInPlaylistItem(
-                                    icon = R.drawable.airplane,
-                                    colorTint = colorPalette.blue,
-                                    name = "Offline",
-                                    modifier = Modifier
-                                        .padding(all = 8.dp)
-                                        .clickable(
-                                            indication = rememberRipple(bounded = true),
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            onClick = { builtInPlaylistRoute(BuiltInPlaylist.Offline) }
-                                        )
-                                )
-                            }
+                        item(key = "offline") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.airplane,
+                                colorTint = colorPalette.blue,
+                                name = stringResource(R.string.offline),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Offline) }
+                                    )
+                            )
                         }
 
                         items(
@@ -518,17 +429,77 @@ fun HomeScreen() {
                     }
                 }
 
+                /*item("playlists") {
+                    LazyHorizontalGrid(
+                        state = lazyHorizontalGridState,
+                        rows = GridCells.Fixed(if (playlistGridExpanded) 3 else 1),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier
+                            .animateContentSize()
+                            .fillMaxWidth()
+                            .height(124.dp * (if (playlistGridExpanded) 3 else 1))
+                    ) {
+                        item(key = "favorites") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.heart,
+                                colorTint = colorPalette.red,
+                                name = stringResource(R.string.fav),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Favorites) }
+                                    )
+                            )
+                        }
+
+                        item(key = "offline") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.airplane,
+                                colorTint = colorPalette.blue,
+                                name = stringResource(R.string.offline),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Offline) }
+                                    )
+                            )
+                        }
+
+                        items(
+                            items = playlistPreviews,
+                            key = { it.playlist.id },
+                            contentType = { it }
+                        ) { playlistPreview ->
+                            PlaylistPreviewItem(
+                                playlistPreview = playlistPreview,
+                                modifier = Modifier
+                                    .animateItemPlacement()
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { localPlaylistRoute(playlistPreview.playlist.id) }
+                                    )
+                            )
+                        }
+                    }
+                }*/
+
                 item("songs") {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
-                            .background(colorPalette.background)
+                            .background(colorPalette.background0)
                             .zIndex(1f)
                             .padding(horizontal = 8.dp)
                             .padding(top = 32.dp)
                     ) {
                         BasicText(
-                            text = "Songs",
+                            text = stringResource(R.string.songs),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -577,7 +548,7 @@ fun HomeScreen() {
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "PLAY TIME",
+                                        text = stringResource(R.string.play_time),
                                         isSelected = songSortBy == SongSortBy.PlayTime,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -586,7 +557,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "TITLE",
+                                        text = stringResource(R.string.title),
                                         isSelected = songSortBy == SongSortBy.Title,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -595,7 +566,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = songSortBy == SongSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -609,8 +580,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (songSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -625,14 +596,13 @@ fun HomeScreen() {
 
                 itemsIndexed(
                     items = songCollection,
-                    key = { _, song ->
-                        song.song.id
-                    },
+                    key = { _, song -> song.id },
                     contentType = { _, song -> song }
                 ) { index, song ->
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -652,7 +622,7 @@ fun HomeScreen() {
                                     .align(Alignment.BottomCenter)
                             ) {
                                 BasicText(
-                                    text = song.song.formattedTotalPlayTime,
+                                    text = song.formattedTotalPlayTime,
                                     style = typography.xxs.semiBold.center.color(Color.White),
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
@@ -678,4 +648,13 @@ fun HomeScreen() {
             }
         }
     }
+}
+
+private suspend fun fetchAlbum(browseId: String){
+    print("oui form homze")
+    YouTube.newRelease()
+        ?.map { youtubeAlbum ->
+            print(youtubeAlbum.name?.get(0))
+            Log.d("TAG",youtubeAlbum.name?.joinToString("")?:"nooon")
+        }
 }

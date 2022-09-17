@@ -8,15 +8,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,6 +36,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -59,7 +62,9 @@ import it.vfsfitvnm.vimusic.ui.components.themed.TextPlaceholder
 import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.ui.styling.shimmer
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.bold
 import it.vfsfitvnm.vimusic.utils.center
@@ -108,9 +113,9 @@ fun AlbumScreen(browseId: String) {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = PaddingValues(bottom = 72.dp),
+                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
@@ -157,7 +162,7 @@ fun AlbumScreen(browseId: String) {
                                     .weight(1f)
                             ) {
                                 BasicText(
-                                    text = album.title ?: "Unknown",
+                                    text = album.title ?: stringResource(R.string.unknown),
                                     style = typography.m.semiBold
                                 )
 
@@ -171,6 +176,16 @@ fun AlbumScreen(browseId: String) {
                                 album.year?.let { year ->
                                     BasicText(
                                         text = year,
+                                        style = typography.xs.secondary,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                    )
+                                }
+
+                                album.let { album ->
+                                    BasicText(
+                                        text = album.numberItems + " • " +  album.length,
                                         style = typography.xs.secondary,
                                         maxLines = 1,
                                         modifier = Modifier
@@ -221,7 +236,7 @@ fun AlbumScreen(browseId: String) {
                                         Menu {
                                             MenuEntry(
                                                 icon = R.drawable.enqueue,
-                                                text = "Enqueue",
+                                                text = stringResource(R.string.enqueue),
                                                 onClick = {
                                                     menuState.hide()
                                                     binder?.player?.enqueue(
@@ -232,7 +247,7 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.playlist,
-                                                text = "Import as playlist",
+                                                text = stringResource(R.string.import_as_playlist),
                                                 onClick = {
                                                     menuState.hide()
 
@@ -251,7 +266,7 @@ fun AlbumScreen(browseId: String) {
                                                                 songs.forEachIndexed { index, song ->
                                                                     Database.insert(
                                                                         SongPlaylistMap(
-                                                                            songId = song.song.id,
+                                                                            songId = song.id,
                                                                             playlistId = playlistId,
                                                                             position = index
                                                                         )
@@ -264,7 +279,7 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.share_social,
-                                                text = "Share",
+                                                text = stringResource(R.string.share),
                                                 onClick = {
                                                     menuState.hide()
 
@@ -287,13 +302,11 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.download,
-                                                text = "Refetch",
+                                                text = stringResource(R.string.refetch),
                                                 secondaryText = albumResult?.getOrNull()?.timestamp?.let { timestamp ->
-                                                    "Last updated on ${
-                                                        DateFormat
-                                                            .getDateTimeInstance()
-                                                            .format(Date(timestamp))
-                                                    }"
+                                                    stringResource(R.string.last_update)+ DateFormat
+                                                        .getDateTimeInstance()
+                                                        .format(Date(timestamp))
                                                 },
                                                 isEnabled = albumResult?.getOrNull() != null,
                                                 onClick = {
@@ -320,13 +333,15 @@ fun AlbumScreen(browseId: String) {
 
                 itemsIndexed(
                     items = songs,
-                    key = { _, song -> song.song.id },
+                    key = { _, song -> song.id },
                     contentType = { _, song -> song }
                 ) { index, song ->
                     SongItem(
-                        title = song.song.title,
-                        authors = song.song.artistsText ?: albumResult?.getOrNull()?.authorsText,
-                        durationText = song.song.durationText,
+                        title = song.title,
+                        authors = song.artistsText ?: albumResult?.getOrNull()?.authorsText,
+                        durationText = song.durationText,
+                        mediaItem = song.asMediaItem,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -377,7 +392,7 @@ private fun LoadingOrError(
         ) {
             Spacer(
                 modifier = Modifier
-                    .background(color = colorPalette.darkGray, shape = ThumbnailRoundness.shape)
+                    .background(color = colorPalette.shimmer, shape = ThumbnailRoundness.shape)
                     .size(Dimensions.thumbnails.album)
             )
 
@@ -400,29 +415,35 @@ private fun LoadingOrError(
 }
 
 private suspend fun fetchAlbum(browseId: String): Result<Album>? {
-    return YouTube.playlistOrAlbum(browseId)
+    return YouTube.album(browseId)
         ?.map { youtubeAlbum ->
-            Album(
+            val album = Album(
                 id = browseId,
                 title = youtubeAlbum.title,
                 thumbnailUrl = youtubeAlbum.thumbnail?.url,
                 year = youtubeAlbum.year,
                 authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
                 shareUrl = youtubeAlbum.url,
-                timestamp = System.currentTimeMillis()
-            ).also(Database::upsert).also {
-                youtubeAlbum.withAudioSources().items?.forEachIndexed { position, albumItem ->
-                    albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
-                        Database.insert(mediaItem)
-                        Database.upsert(
-                            SongAlbumMap(
-                                songId = mediaItem.mediaId,
-                                albumId = browseId,
-                                position = position
-                            )
+                timestamp = System.currentTimeMillis(),
+                numberItems = youtubeAlbum.numberItems,
+                length = youtubeAlbum.length
+            )
+
+            Database.upsert(album)
+
+            youtubeAlbum.items?.forEachIndexed { position, albumItem ->
+                albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
+                    Database.insert(mediaItem)
+                    Database.upsert(
+                        SongAlbumMap(
+                            songId = mediaItem.mediaId,
+                            albumId = browseId,
+                            position = position
                         )
-                    }
+                    )
                 }
             }
+
+            album
         }
 }

@@ -10,19 +10,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.Coil
 import coil.annotation.ExperimentalCoilApi
@@ -34,17 +34,15 @@ import it.vfsfitvnm.vimusic.enums.ExoPlayerDiskCacheMaxSize
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
 import it.vfsfitvnm.vimusic.ui.screens.EnumValueSelectorSettingsEntry
 import it.vfsfitvnm.vimusic.ui.screens.SettingsDescription
-import it.vfsfitvnm.vimusic.ui.screens.SettingsEntry
 import it.vfsfitvnm.vimusic.ui.screens.SettingsEntryGroupText
 import it.vfsfitvnm.vimusic.ui.screens.SettingsGroupDescription
 import it.vfsfitvnm.vimusic.ui.screens.SettingsTitle
 import it.vfsfitvnm.vimusic.ui.screens.globalRoutes
+import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.coilDiskCacheMaxSizeKey
 import it.vfsfitvnm.vimusic.utils.exoPlayerDiskCacheMaxSizeKey
 import it.vfsfitvnm.vimusic.utils.rememberPreference
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoilApi::class)
 @ExperimentalAnimationApi
@@ -70,14 +68,13 @@ fun CacheSettingsScreen() {
                 ExoPlayerDiskCacheMaxSize.`2GB`
             )
 
-            val coroutineScope = rememberCoroutineScope()
-
             Column(
                 modifier = Modifier
-                    .background(colorPalette.background)
+                    .background(colorPalette.background0)
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(bottom = 72.dp)
+                    .padding(bottom = Dimensions.collapsedPlayer)
+                    .systemBarsPadding()
             ) {
                 TopAppBar(
                     modifier = Modifier
@@ -94,35 +91,24 @@ fun CacheSettingsScreen() {
                     )
                 }
 
-                SettingsTitle(text = "Cache")
+                SettingsTitle(text = stringResource(R.string.cache))
 
-                SettingsDescription(text = "When the cache runs out of space, the resources that haven't been accessed for the longest time are cleared.")
+                SettingsDescription(text = stringResource(R.string.cache_sub_desc))
 
                 Coil.imageLoader(context).diskCache?.let { diskCache ->
-                    var diskCacheSize by remember(diskCache) {
-                        mutableStateOf(diskCache.size)
+                    val diskCacheSize = remember(diskCache) {
+                        diskCache.size
                     }
 
-                    SettingsEntryGroupText(title = "IMAGE CACHE")
+                    SettingsEntryGroupText(title = stringResource(R.string.image_cache))
 
-                    SettingsGroupDescription(text = "${Formatter.formatShortFileSize(context, diskCacheSize)} used (${diskCacheSize * 100 / coilDiskCacheMaxSize.bytes.coerceAtLeast(1)}%)")
+                    SettingsGroupDescription(text = "${Formatter.formatShortFileSize(context, diskCacheSize)}" +stringResource(R.string.image_cache_used) +"(${diskCacheSize * 100 / coilDiskCacheMaxSize.bytes.coerceAtLeast(1)}%)")
 
                     EnumValueSelectorSettingsEntry(
-                        title = "Max size",
+                        title = stringResource(R.string.max_size),
                         selectedValue = coilDiskCacheMaxSize,
                         onValueSelected = {
                             coilDiskCacheMaxSize = it
-                        }
-                    )
-
-                    SettingsEntry(
-                        title = "Clear space",
-                        text = "Wipe every cached image",
-                        onClick = {
-                            coroutineScope.launch(Dispatchers.IO) {
-                                diskCache.clear()
-                                diskCacheSize = diskCache.size
-                            }
                         }
                     )
                 }
@@ -134,12 +120,12 @@ fun CacheSettingsScreen() {
                         }
                     }
 
-                    SettingsEntryGroupText(title = "SONG CACHE")
+                    SettingsEntryGroupText(title = stringResource(R.string.song_cache))
 
                     SettingsGroupDescription(
                         text = buildString {
                             append(Formatter.formatShortFileSize(context, diskCacheSize))
-                            append(" used")
+                            append(stringResource(R.string.image_cache_used))
                             when (val size = exoPlayerDiskCacheMaxSize) {
                                 ExoPlayerDiskCacheMaxSize.Unlimited -> {}
                                 else -> append(" (${diskCacheSize * 100 / size.bytes}%)")
@@ -148,7 +134,7 @@ fun CacheSettingsScreen() {
                     )
 
                     EnumValueSelectorSettingsEntry(
-                        title = "Max size",
+                        title = stringResource(R.string.max_size),
                         selectedValue = exoPlayerDiskCacheMaxSize,
                         onValueSelected = {
                             exoPlayerDiskCacheMaxSize = it

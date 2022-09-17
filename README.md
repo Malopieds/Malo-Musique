@@ -23,10 +23,10 @@
 - Background playback
 - Cache audio chunks for offline playback
 - Search for songs, albums, artists videos and playlists
-- Display and edit songs lyrics
+- Fetch, display and edit songs lyrics or synchronized lyrics
 - Local playlist management
 - Reorder songs in playlist or queue
-- Light/Dark theme
+- Light/Dark/Dynamic theme
 - Skip silence
 - Sleep timer
 - Audio normalization
