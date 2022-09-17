@@ -1,6 +1,8 @@
 package it.vfsfitvnm.vimusic.ui.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateContentSize
@@ -60,9 +62,7 @@ import it.vfsfitvnm.vimusic.enums.PlaylistSortBy
 import it.vfsfitvnm.vimusic.enums.SongSortBy
 import it.vfsfitvnm.vimusic.enums.SortOrder
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
-import it.vfsfitvnm.vimusic.models.DetailedSong
-import it.vfsfitvnm.vimusic.models.Playlist
-import it.vfsfitvnm.vimusic.models.SearchQuery
+import it.vfsfitvnm.vimusic.models.*
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
 import it.vfsfitvnm.vimusic.ui.components.themed.DropDownSection
@@ -77,23 +77,15 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.BuiltInPlaylistItem
 import it.vfsfitvnm.vimusic.ui.views.PlaylistPreviewItem
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-import it.vfsfitvnm.vimusic.utils.add
-import it.vfsfitvnm.vimusic.utils.asMediaItem
-import it.vfsfitvnm.vimusic.utils.center
-import it.vfsfitvnm.vimusic.utils.color
-import it.vfsfitvnm.vimusic.utils.drawCircle
-import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
-import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
-import it.vfsfitvnm.vimusic.utils.isFirstLaunchKey
-import it.vfsfitvnm.vimusic.utils.playlistGridExpandedKey
-import it.vfsfitvnm.vimusic.utils.playlistSortByKey
-import it.vfsfitvnm.vimusic.utils.playlistSortOrderKey
-import it.vfsfitvnm.vimusic.utils.rememberPreference
-import it.vfsfitvnm.vimusic.utils.semiBold
-import it.vfsfitvnm.vimusic.utils.songSortByKey
-import it.vfsfitvnm.vimusic.utils.songSortOrderKey
+import it.vfsfitvnm.vimusic.utils.*
+import it.vfsfitvnm.youtubemusic.YouTube
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
+@SuppressLint("CoroutineCreationDuringComposition")
 @ExperimentalFoundationApi
 @ExperimentalAnimationApi
 @Composable
@@ -117,6 +109,18 @@ fun HomeScreen() {
     val songCollection by remember(songSortBy, songSortOrder) {
         Database.songs(songSortBy, songSortOrder)
     }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
+
+    val browseId = "FEmusic_new_releases"
+
+    val albumResult by remember(browseId) {
+        Database.album(browseId).map { album ->
+            album
+                ?: fetchAlbum(browseId)
+        }.distinctUntilChanged()
+    }.collectAsState(initial = null, context = Dispatchers.IO)
+
+    println(albumResult)
+
 
     RouteHandler(listenToGlobalEmitter = true) {
         settingsRoute {
@@ -425,6 +429,66 @@ fun HomeScreen() {
                     }
                 }
 
+                /*item("playlists") {
+                    LazyHorizontalGrid(
+                        state = lazyHorizontalGridState,
+                        rows = GridCells.Fixed(if (playlistGridExpanded) 3 else 1),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier
+                            .animateContentSize()
+                            .fillMaxWidth()
+                            .height(124.dp * (if (playlistGridExpanded) 3 else 1))
+                    ) {
+                        item(key = "favorites") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.heart,
+                                colorTint = colorPalette.red,
+                                name = stringResource(R.string.fav),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Favorites) }
+                                    )
+                            )
+                        }
+
+                        item(key = "offline") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.airplane,
+                                colorTint = colorPalette.blue,
+                                name = stringResource(R.string.offline),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Offline) }
+                                    )
+                            )
+                        }
+
+                        items(
+                            items = playlistPreviews,
+                            key = { it.playlist.id },
+                            contentType = { it }
+                        ) { playlistPreview ->
+                            PlaylistPreviewItem(
+                                playlistPreview = playlistPreview,
+                                modifier = Modifier
+                                    .animateItemPlacement()
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { localPlaylistRoute(playlistPreview.playlist.id) }
+                                    )
+                            )
+                        }
+                    }
+                }*/
+
                 item("songs") {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -584,4 +648,13 @@ fun HomeScreen() {
             }
         }
     }
+}
+
+private suspend fun fetchAlbum(browseId: String){
+    print("oui form homze")
+    YouTube.newRelease()
+        ?.map { youtubeAlbum ->
+            print(youtubeAlbum.name?.get(0))
+            Log.d("TAG",youtubeAlbum.name?.joinToString("")?:"nooon")
+        }
 }
