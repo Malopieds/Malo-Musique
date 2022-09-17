@@ -17,3 +17,8 @@ data class Artist(
     val radioPlaylistId: String? = null,
     val timestamp: Long?
 )
+
+data class ArtistSongs(
+    @PrimaryKey val id: String,
+    val name: List<String>,
+)

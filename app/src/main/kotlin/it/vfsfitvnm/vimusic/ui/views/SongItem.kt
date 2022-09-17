@@ -183,7 +183,7 @@ fun SongItem(
                     colorFilter = ColorFilter.tint(Color(0xffe1e1e2)),
                     modifier = Modifier
                         .padding(24.dp)
-                        .size(24.dp)
+                        .size(40.dp)
                 )
             },
             hiddenContentEnd = {
@@ -193,7 +193,7 @@ fun SongItem(
                     colorFilter = ColorFilter.tint(Color(0xffe1e1e2)),
                     modifier = Modifier
                         .padding(24.dp)
-                        .size(24.dp)
+                        .size(40.dp)
                 )
             }) {
             Row(

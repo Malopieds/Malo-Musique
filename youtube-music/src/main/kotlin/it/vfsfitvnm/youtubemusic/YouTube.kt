@@ -799,6 +799,8 @@ object YouTube {
         val items: List<Item>?,
         val url: String?,
         val continuation: String?,
+        val numberItems: String?,
+        val length: String?,
     ) {
         data class Item(
             val info: Info<NavigationEndpoint.Endpoint.Watch>,
@@ -963,7 +965,21 @@ object YouTube {
                     ?.continuations
                     ?.firstOrNull()
                     ?.nextRadioContinuationData
-                    ?.continuation
+                    ?.continuation,
+                numberItems = body
+                    .header
+                    ?.musicDetailHeaderRenderer
+                    ?.secondSubtitle
+                    ?.runs
+                    ?.get(0)
+                    ?.text,
+                length = body
+                    .header?.musicDetailHeaderRenderer
+                    ?.secondSubtitle
+                    ?.runs
+                    ?.get(2)
+                    ?.text
+
             )
         }
     }
@@ -973,11 +989,13 @@ object YouTube {
         val description: String?,
         val thumbnail: ThumbnailRenderer.MusicThumbnailRenderer.Thumbnail.Thumbnail?,
         val shuffleEndpoint: NavigationEndpoint.Endpoint.Watch?,
-        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?
+        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?,
+        val songs: List<String>
     )
 
     suspend fun artist(browseId: String): Result<Artist>? {
         return browse(browseId)?.map { body ->
+            println(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)?.text)
             Artist(
                 name = body
                     .header
@@ -1011,7 +1029,73 @@ object YouTube {
                     ?.startRadioButton
                     ?.buttonRenderer
                     ?.navigationEndpoint
-                    ?.watchEndpoint
+                    ?.watchEndpoint,
+                songs = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
+            )
+        }
+    }
+
+    data class NewRalease(
+        val name: List<PlaylistOrAlbum>?,
+    )
+
+    suspend fun newRelease(): Result<NewRalease>?{
+        return browse("FEmusic_new_releases")?.map { body ->
+            print(body.contents
+                ?.singleColumnBrowseResultsRenderer
+                ?.tabs
+                ?.get(0)
+                ?.tabRenderer
+                ?.content
+                ?.sectionListRenderer
+                ?.contents
+                ?.get(0)
+                ?.musicCarouselShelfRenderer
+                ?.contents)
+            val playlistNewRelease: List<PlaylistOrAlbum> = emptyList()
+            val listContent = body
+                .contents
+                .singleColumnBrowseResultsRenderer
+                ?.tabs
+                ?.get(0)
+                ?.tabRenderer
+                ?.content
+                ?.sectionListRenderer
+                ?.contents
+                ?.get(0)
+                ?.musicCarouselShelfRenderer
+                ?.contents?.get(0)
+            ?.musicTwoRowItemRenderer
+                ?.navigationEndpoint
+                ?.browseEndpoint
+                ?.browseId.toString()
+            print(listContent)
+            /*if (listContent != null) {
+                for (item in listContent){
+                    val browseId = item
+                        .musicTwoRowItemRenderer
+                        ?.navigationEndpoint
+                        ?.browseEndpoint
+                        ?.browseId
+                    val playlistOrAlbum = playlistOrAlbum(browseId ?: "")
+                    print(playlistOrAlbum)
+                    playlistNewRelease + playlistOrAlbum
+
+
+                }
+            }*/
+            NewRalease(playlistNewRelease)
+        }
+    }
+
+    data class ArtistSongs(
+        val name: List<String>,
+    )
+
+    suspend fun artistSongs(browseId: String): Result<ArtistSongs>? {
+        return browse(browseId)?.map { body ->
+            ArtistSongs(
+                name = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
             )
         }
     }

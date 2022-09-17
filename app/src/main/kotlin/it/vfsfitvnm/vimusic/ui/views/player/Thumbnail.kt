@@ -4,7 +4,9 @@ import android.annotation.SuppressLint
 import android.media.browse.MediaBrowser
 import android.util.Log
 import androidx.compose.animation.*
+import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -60,6 +62,11 @@ fun Thumbnail(
     }
 
     val offsetAnimation by animateDpAsState(targetValue = 0.dp)
+    val offsetReturn by animateFloatAsState(targetValue = 0f)
+
+    var visible by remember {
+        mutableStateOf(true)
+    }
 
     val error by rememberError(player)
 
@@ -67,21 +74,16 @@ fun Thumbnail(
 
     AnimatedContent(
         targetState = mediaItemIndex,
-        /*transitionSpec = {
-            (slideIntoContainer(AnimatedContentScope.SlideDirection.Left, initialOffset = xOffset.toInt()) + fadeIn()).using(
-
-            )
-        },*/
         transitionSpec = {
-            if (xOffset == 0f){
+            if (visible){
                 val slideDirection =
                     if (targetState > initialState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
-                xOffset = 0f
                 (slideIntoContainer(slideDirection) + fadeIn() with
                         slideOutOfContainer(slideDirection) + fadeOut()).using(
                     SizeTransform(clip = false))
             }else {
-                xOffset = 0f
+                xOffset = offsetReturn
+                visible = true
                 ContentTransform(targetContentEnter = fadeIn(), initialContentExit = fadeOut())
             }
         },
@@ -118,7 +120,7 @@ fun Thumbnail(
                 modifier = Modifier
                     .size(thumbnailSizeDp)
             ) {
-                if  (prevMediaItem != null) {
+                if  (prevMediaItem != null && visible) {
                     AsyncImage(
                         model = prevMediaItem.mediaMetadata.artworkUri.thumbnail(thumbnailSizePx),
                         contentDescription = null,
@@ -144,13 +146,22 @@ fun Thumbnail(
                                     xOffset = 0f
                                 },
                                 onDragEnd = {
-                                    if (xOffset >= 30) {
-                                        currentMediaItem = prevMediaItem!!
+                                    if (xOffset >= 30 && prevMediaItem != null) {
+                                        currentMediaItem = prevMediaItem
+                                        visible = false
                                         binder.player.seekToPreviousMediaItem()
-                                    } else if (xOffset <= -30) {
-                                        currentMediaItem = nextMediaItem!!
+                                    } else if (xOffset <= -30 && nextMediaItem != null) {
+                                        currentMediaItem = nextMediaItem
+                                        visible = false
                                         binder.player.seekToNextMediaItem()
+                                    } else {
+                                        xOffset = 0f
                                     }
+                                }
+                            ) { change, dragAmount ->
+                                change.consume()
+                                if (prevMediaItem != null && dragAmount > 0 || nextMediaItem != null && dragAmount < 0) {
+                                    xOffset += dragAmount / 2
                                 }
                             ) { change, dragAmount ->
                                 change.consume()
@@ -163,7 +174,7 @@ fun Thumbnail(
                         )
                         .fillMaxSize()
                 )
-                if  (nextMediaItem != null) {
+                if  (nextMediaItem != null && visible) {
                     AsyncImage(
                         model = nextMediaItem.mediaMetadata.artworkUri.thumbnail(thumbnailSizePx),
                         contentDescription = null,

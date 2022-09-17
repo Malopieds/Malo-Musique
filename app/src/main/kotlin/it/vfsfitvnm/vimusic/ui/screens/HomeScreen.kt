@@ -73,10 +73,8 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.BuiltInPlaylistItem
 import it.vfsfitvnm.vimusic.ui.views.PlaylistPreviewItem
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-<<<<<<< HEAD
 import it.vfsfitvnm.vimusic.utils.*
 import it.vfsfitvnm.youtubemusic.YouTube
-=======
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.color
@@ -90,7 +88,6 @@ import it.vfsfitvnm.vimusic.utils.rememberPreference
 import it.vfsfitvnm.vimusic.utils.semiBold
 import it.vfsfitvnm.vimusic.utils.songSortByKey
 import it.vfsfitvnm.vimusic.utils.songSortOrderKey
->>>>>>> 0f8c1c800f5304470951986c613c9c96e005ebd2
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.distinctUntilChanged
