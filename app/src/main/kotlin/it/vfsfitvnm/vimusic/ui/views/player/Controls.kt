@@ -35,7 +35,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.C
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
@@ -47,6 +46,8 @@ import it.vfsfitvnm.vimusic.ui.screens.artistRoute
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.favoritesIcon
 import it.vfsfitvnm.vimusic.utils.bold
+import it.vfsfitvnm.vimusic.utils.forceSeekToNext
+import it.vfsfitvnm.vimusic.utils.forceSeekToPrevious
 import it.vfsfitvnm.vimusic.utils.rememberRepeatMode
 import it.vfsfitvnm.vimusic.utils.secondary
 import it.vfsfitvnm.vimusic.utils.semiBold
@@ -55,7 +56,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 fun Controls(
-    mediaItem: MediaItem,
+    mediaId: String,
+    title: String?,
+    artist: String?,
     shouldBePlaying: Boolean,
     position: Long,
     duration: Long,
@@ -69,12 +72,12 @@ fun Controls(
 
     val repeatMode by rememberRepeatMode(binder.player)
 
-    var scrubbingPosition by remember(mediaItem.mediaId) {
+    var scrubbingPosition by remember(mediaId) {
         mutableStateOf<Long?>(null)
     }
 
-    val likedAt by remember(mediaItem.mediaId) {
-        Database.likedAt(mediaItem.mediaId).distinctUntilChanged()
+    val likedAt by remember(mediaId) {
+        Database.likedAt(mediaId).distinctUntilChanged()
     }.collectAsState(initial = null, context = Dispatchers.IO)
 
     val shouldBePlayingTransition = updateTransition(shouldBePlaying, label = "shouldBePlaying")
@@ -99,14 +102,14 @@ fun Controls(
         )
 
         BasicText(
-            text = mediaItem.mediaMetadata.title?.toString() ?: "",
+            text = title ?: "",
             style = typography.l.bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
 
         BasicText(
-            text = mediaItem.mediaMetadata.artist?.toString() ?: "",
+            text = artist ?: "",
             style = typography.s.semiBold.secondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
@@ -203,13 +206,12 @@ fun Controls(
                 colorFilter = ColorFilter.tint(colorPalette.favoritesIcon),
                 modifier = Modifier
                     .clickable {
+                        val currentMediaItem = binder.player.currentMediaItem
                         query {
-                            if (Database.like(
-                                    mediaItem.mediaId,
-                                    if (likedAt == null) System.currentTimeMillis() else null
-                                ) == 0
-                            ) {
-                                Database.insert(mediaItem, Song::toggleLike)
+                            if (Database.like(mediaId, if (likedAt == null) System.currentTimeMillis() else null) == 0) {
+                                currentMediaItem?.takeIf { it.mediaId == mediaId }?.let {
+                                    Database.insert(currentMediaItem, Song::toggleLike)
+                                }
                             }
                         }
                     }
@@ -222,7 +224,7 @@ fun Controls(
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(colorPalette.text),
                 modifier = Modifier
-                    .clickable(onClick = binder.player::seekToPrevious)
+                    .clickable(onClick = binder.player::forceSeekToPrevious)
                     .weight(1f)
                     .size(24.dp)
             )
@@ -268,35 +270,27 @@ fun Controls(
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(colorPalette.text),
                 modifier = Modifier
-                    .clickable(onClick = binder.player::seekToNext)
+                    .clickable(onClick = binder.player::forceSeekToNext)
                     .weight(1f)
                     .size(24.dp)
             )
 
             Image(
-                painter = painterResource(
-                    if (repeatMode == Player.REPEAT_MODE_ONE) {
-                        R.drawable.repeat_one
-                    } else {
-                        R.drawable.repeat
-                    }
-                ),
+                painter = painterResource(R.drawable.infinite),
                 contentDescription = null,
                 colorFilter = ColorFilter.tint(
-                    if (repeatMode == Player.REPEAT_MODE_OFF) {
-                        colorPalette.textDisabled
-                    } else {
+                    if (repeatMode == Player.REPEAT_MODE_ONE) {
                         colorPalette.text
+                    } else {
+                        colorPalette.textDisabled
                     }
                 ),
                 modifier = Modifier
                     .clickable {
-                        binder.player.repeatMode
-                            .plus(2)
-                            .mod(3)
-                            .let {
-                                binder.player.repeatMode = it
-                            }
+                        binder.player.repeatMode = when (binder.player.repeatMode) {
+                            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
+                            else -> Player.REPEAT_MODE_ONE
+                        }
                     }
                     .weight(1f)
                     .size(24.dp)

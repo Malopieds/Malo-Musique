@@ -1,15 +1,16 @@
 package it.vfsfitvnm.vimusic.models
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Junction
 import androidx.room.Relation
 
+@Immutable
 open class DetailedSong(
     val id: String,
     val title: String,
     val artistsText: String? = null,
     val durationText: String,
     val thumbnailUrl: String?,
-    val likedAt: Long? = null,
     val totalPlayTimeMs: Long = 0,
     @Relation(
         entity = SongAlbumMap::class,
@@ -26,9 +27,10 @@ open class DetailedSong(
             value = SongArtistMap::class,
             parentColumn = "songId",
             entityColumn = "artistId"
-        )
+        ),
+        projection = ["id", "name"]
     )
-    val artists: List<Artist>?
+    val artists: List<Info>?
 ) {
     val formattedTotalPlayTime: String
         get() {

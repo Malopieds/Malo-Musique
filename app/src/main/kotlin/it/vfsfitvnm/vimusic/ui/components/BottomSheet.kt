@@ -39,8 +39,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
-import androidx.compose.ui.unit.dp
-import kotlin.math.absoluteValue
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -62,35 +60,29 @@ fun BottomSheet(
                 IntOffset(x = 0, y = y)
             }
             .pointerInput(state) {
-                var initialValue = 0.dp
                 val velocityTracker = VelocityTracker()
 
                 detectVerticalDragGestures(
-                    onDragStart = {
-                        initialValue = state.value
-                    },
                     onVerticalDrag = { change, dragAmount ->
                         velocityTracker.addPointerInputChange(change)
                         state.dispatchRawDelta(dragAmount)
                     },
                     onDragCancel = {
                         velocityTracker.resetTracking()
-                        state.snapTo(initialValue)
+                        state.snapTo(state.collapsedBound)
                     },
                     onDragEnd = {
-                        val velocity = velocityTracker.calculateVelocity().y
+                        val velocity = -velocityTracker.calculateVelocity().y
                         velocityTracker.resetTracking()
 
-                        if (velocity.absoluteValue > 250 && initialValue != state.value) {
-                            when (initialValue) {
-                                state.expandedBound -> state.collapse()
-                                state.collapsedBound -> if (initialValue > state.value && onDismiss != null) {
-                                    state.dismiss()
-                                    onDismiss.invoke()
-                                } else {
-                                    state.expand()
-                                }
-                                else -> state.expand()
+                        if (velocity > 250) {
+                            state.expand()
+                        } else if (velocity < -250) {
+                            if (state.value < state.collapsedBound && onDismiss != null) {
+                                state.dismiss()
+                                onDismiss.invoke()
+                            } else {
+                                state.collapse()
                             }
                         } else {
                             val l0 = state.dismissedBound
@@ -109,12 +101,9 @@ fun BottomSheet(
                                 }
                                 in l1..l2 -> state.collapse()
                                 in l2..l3 -> state.expand()
-                                else -> {
-
-                                }
+                                else -> Unit
                             }
                         }
-
                     }
                 )
             }
@@ -250,14 +239,23 @@ class BottomSheetState(
 
             override suspend fun onPreFling(available: Velocity): Velocity {
                 if (isTopReached) {
+                    val velocity = -available.y
                     coroutineScope {
-                        if (available.y.absoluteValue > 1000) {
+                        if (velocity > 250) {
+                            expand()
+                        } else if (velocity < -250) {
                             collapse()
                         } else {
-                            if (animatable.upperBound!! - value > value - collapsedBound) {
-                                collapse()
-                            } else {
-                                expand()
+                            val l0 = dismissedBound
+                            val l1 = (collapsedBound - dismissedBound) / 2
+                            val l2 = (expandedBound - collapsedBound) / 2
+                            val l3 = expandedBound
+
+                            when (value) {
+                                in l0..l1 -> collapse()
+                                in l1..l2 -> collapse()
+                                in l2..l3 -> expand()
+                                else -> Unit
                             }
                         }
                     }
@@ -276,22 +274,22 @@ class BottomSheetState(
     }
 }
 
-private const val expandedAnchor = 2
-private const val collapsedAnchor = 1
-private const val dismissedAnchor = 0
+const val expandedAnchor = 2
+const val collapsedAnchor = 1
+const val dismissedAnchor = 0
 
 @Composable
 fun rememberBottomSheetState(
     dismissedBound: Dp,
     expandedBound: Dp,
     collapsedBound: Dp = dismissedBound,
-    isExpanded: Boolean = false
+    initialAnchor: Int = dismissedAnchor
 ): BottomSheetState {
     val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
 
     var previousAnchor by rememberSaveable {
-        mutableStateOf(if (isExpanded) expandedAnchor else collapsedAnchor)
+        mutableStateOf(initialAnchor)
     }
 
     return remember(dismissedBound, expandedBound, collapsedBound, coroutineScope) {

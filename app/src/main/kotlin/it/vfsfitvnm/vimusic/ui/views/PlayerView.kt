@@ -10,6 +10,7 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -79,7 +80,7 @@ import kotlin.math.absoluteValue
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.toColor
 
-
+@ExperimentalFoundationApi
 @RequiresApi(Build.VERSION_CODES.O)
 @ExperimentalAnimationApi
 @Composable
@@ -276,7 +277,6 @@ fun PlayerView(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .weight(0.66f)
-                            .padding(horizontal = 16.dp)
                             .padding(bottom = 16.dp)
                     ) {
                         Thumbnail(
@@ -285,11 +285,15 @@ fun PlayerView(
                             isShowingStatsForNerds = isShowingStatsForNerds,
                             onShowStatsForNerds = { isShowingStatsForNerds = it },
                             nestedScrollConnectionProvider = layoutState::nestedScrollConnection,
+                            modifier = Modifier
+                                .padding(horizontal = 16.dp)
                         )
                     }
 
                     Controls(
-                        mediaItem = mediaItem,
+                        mediaId = mediaItem.mediaId,
+                        title = mediaItem.mediaMetadata.title?.toString(),
+                        artist = mediaItem.mediaMetadata.artist?.toString(),
                         shouldBePlaying = shouldBePlaying,
                         position = positionAndDuration.first,
                         duration = positionAndDuration.second,
@@ -317,7 +321,6 @@ fun PlayerView(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .weight(1.25f)
-                            .padding(horizontal = 32.dp, vertical = 8.dp)
                     ) {
                         Thumbnail(
                             isShowingLyrics = isShowingLyrics,
@@ -325,11 +328,15 @@ fun PlayerView(
                             isShowingStatsForNerds = isShowingStatsForNerds,
                             onShowStatsForNerds = { isShowingStatsForNerds = it },
                             nestedScrollConnectionProvider = layoutState::nestedScrollConnection,
+                            modifier = Modifier
+                                .padding(horizontal = 32.dp, vertical = 8.dp)
                         )
                     }
 
                     Controls(
-                        mediaItem = mediaItem,
+                        mediaId = mediaItem.mediaId,
+                        title = mediaItem.mediaMetadata.title?.toString(),
+                        artist = mediaItem.mediaMetadata.artist?.toString(),
                         shouldBePlaying = shouldBePlaying,
                         position = positionAndDuration.first,
                         duration = positionAndDuration.second,

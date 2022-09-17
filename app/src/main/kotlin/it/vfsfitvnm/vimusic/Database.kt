@@ -23,6 +23,7 @@ import androidx.room.Transaction
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import androidx.room.Update
+import androidx.room.Upsert
 import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SimpleSQLiteQuery
@@ -196,14 +197,19 @@ interface Database {
     @RewriteQueriesToDropUnusedColumns
     fun songsWithContentLength(): Flow<List<DetailedSongWithContentLength>>
 
-    @Query("UPDATE SongPlaylistMap SET position = position - 1 WHERE playlistId = :playlistId AND position >= :fromPosition")
-    fun decrementSongPositions(playlistId: Long, fromPosition: Int)
+    @Query("""
+        UPDATE SongPlaylistMap SET position = 
+          CASE 
+            WHEN position < :fromPosition THEN position + 1
+            WHEN position > :fromPosition THEN position - 1
+            ELSE :toPosition
+          END 
+        WHERE playlistId = :playlistId AND position BETWEEN MIN(:fromPosition,:toPosition) and MAX(:fromPosition,:toPosition)
+    """)
+    fun move(playlistId: Long, fromPosition: Int, toPosition: Int)
 
-    @Query("UPDATE SongPlaylistMap SET position = position - 1 WHERE playlistId = :playlistId AND position >= :fromPosition AND position <= :toPosition")
-    fun decrementSongPositions(playlistId: Long, fromPosition: Int, toPosition: Int)
-
-    @Query("UPDATE SongPlaylistMap SET position = position + 1 WHERE playlistId = :playlistId AND position >= :fromPosition AND position <= :toPosition")
-    fun incrementSongPositions(playlistId: Long, fromPosition: Int, toPosition: Int)
+    @Query("DELETE FROM SongPlaylistMap WHERE playlistId = :id")
+    fun clearPlaylist(id: Long)
 
     @Query("SELECT loudnessDb FROM Format WHERE songId = :songId")
     fun loudnessDb(songId: String): Flow<Float?>
@@ -310,6 +316,15 @@ interface Database {
     @Update
     fun update(playlist: Playlist)
 
+    @Upsert
+    fun upsert(album: Album, songAlbumMaps: List<SongAlbumMap>)
+
+    @Upsert
+    fun upsert(songAlbumMap: SongAlbumMap)
+
+    @Upsert
+    fun upsert(artist: Artist)
+
     @Delete
     fun delete(searchQuery: SearchQuery)
 
@@ -321,24 +336,6 @@ interface Database {
 
     @Delete
     fun delete(songPlaylistMap: SongPlaylistMap)
-
-    fun upsert(songAlbumMap: SongAlbumMap) {
-        if (insert(songAlbumMap) == -1L) {
-            update(songAlbumMap)
-        }
-    }
-
-    fun upsert(artist: Artist) {
-        if (insert(artist) == -1L) {
-            update(artist)
-        }
-    }
-
-    fun upsert(album: Album) {
-        if (insert(album) == -1L) {
-            update(album)
-        }
-    }
 }
 
 @androidx.room.Database(
@@ -357,7 +354,7 @@ interface Database {
     views = [
         SortedSongPlaylistMap::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -372,6 +369,7 @@ interface Database {
         AutoMigration(from = 12, to = 13),
         AutoMigration(from = 13, to = 14),
         AutoMigration(from = 15, to = 16),
+        AutoMigration(from = 16, to = 17),
     ],
 )
 @TypeConverters(Converters::class)
@@ -540,19 +538,19 @@ object Converters {
 val Database.internal: RoomDatabase
     get() = DatabaseInitializer.Instance
 
-fun query(block: () -> Unit) = DatabaseInitializer.Instance.getQueryExecutor().execute(block)
+fun query(block: () -> Unit) = DatabaseInitializer.Instance.queryExecutor.execute(block)
 
 fun transaction(block: () -> Unit) = with(DatabaseInitializer.Instance) {
-    getTransactionExecutor().execute {
+    transactionExecutor.execute {
         runInTransaction(block)
     }
 }
 
-val RoomDatabase.path: String
-    get() = getOpenHelper().writableDatabase.path
+val RoomDatabase.path: String?
+    get() = openHelper.writableDatabase.path
 
 fun RoomDatabase.checkpoint() {
-    getOpenHelper().writableDatabase.run {
+    openHelper.writableDatabase.run {
         query("PRAGMA journal_mode").use { cursor ->
             if (cursor.moveToFirst()) {
                 when (cursor.getString(0).lowercase()) {

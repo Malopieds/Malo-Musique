@@ -5,8 +5,11 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,6 +31,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
+import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Playlist
@@ -43,7 +47,14 @@ import it.vfsfitvnm.vimusic.ui.components.themed.TextFieldDialog
 import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
+<<<<<<< HEAD
+import it.vfsfitvnm.vimusic.utils.asMediaItem
+import it.vfsfitvnm.vimusic.utils.enqueue
+import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
+import it.vfsfitvnm.vimusic.utils.relaunchableEffect
+=======
 import it.vfsfitvnm.vimusic.utils.*
+>>>>>>> master
 import it.vfsfitvnm.youtubemusic.YouTube
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -166,7 +177,69 @@ fun IntentUriScreen(uri: Uri) {
                 )
             }
 
-            if (uri.path == "/search") { //Hess implementation of "music.youtube.com/search?q=..."
+            LazyColumn(
+                state = lazyListState,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                contentPadding = LocalPlayerAwarePaddingValues.current,
+                modifier = Modifier
+                    .background(colorPalette.background0)
+                    .fillMaxSize()
+            ) {
+                item {
+                    TopAppBar(
+                        modifier = Modifier
+                            .height(52.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.chevron_back),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(colorPalette.text),
+                            modifier = Modifier
+                                .clickable(onClick = pop)
+                                .padding(vertical = 8.dp)
+                                .padding(horizontal = 16.dp)
+                                .size(24.dp)
+                        )
+
+                        Image(
+                            painter = painterResource(R.drawable.ellipsis_horizontal),
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(colorPalette.text),
+                            modifier = Modifier
+                                .clickable {
+                                    menuState.display {
+                                        Menu {
+                                            MenuEntry(
+                                                icon = R.drawable.enqueue,
+                                                text = "Enqueue",
+                                                onClick = {
+                                                    menuState.hide()
+
+                                                    itemsResult
+                                                        ?.getOrNull()
+                                                        ?.map(YouTube.Item.Song::asMediaItem)
+                                                        ?.let { mediaItems ->
+                                                            binder?.player?.enqueue(
+                                                                mediaItems
+                                                            )
+                                                        }
+                                                }
+                                            )
+
+                                            MenuEntry(
+                                                icon = R.drawable.playlist,
+                                                text = "Import as playlist",
+                                                onClick = {
+                                                    isImportingAsPlaylist = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .size(24.dp)
+                        )
+            if (uri.path == "/search") {
                     uri.getQueryParameter("q")?.let { query ->
                         SearchResultScreen(query = query) {}
                     }

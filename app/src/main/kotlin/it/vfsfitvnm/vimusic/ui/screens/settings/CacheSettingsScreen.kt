@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -27,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import coil.Coil
 import coil.annotation.ExperimentalCoilApi
 import it.vfsfitvnm.route.RouteHandler
+import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.CoilDiskCacheMaxSize
@@ -38,7 +38,6 @@ import it.vfsfitvnm.vimusic.ui.screens.SettingsEntryGroupText
 import it.vfsfitvnm.vimusic.ui.screens.SettingsGroupDescription
 import it.vfsfitvnm.vimusic.ui.screens.SettingsTitle
 import it.vfsfitvnm.vimusic.ui.screens.globalRoutes
-import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.coilDiskCacheMaxSizeKey
 import it.vfsfitvnm.vimusic.utils.exoPlayerDiskCacheMaxSizeKey
@@ -73,8 +72,7 @@ fun CacheSettingsScreen() {
                     .background(colorPalette.background0)
                     .fillMaxSize()
                     .verticalScroll(scrollState)
-                    .padding(bottom = Dimensions.collapsedPlayer)
-                    .systemBarsPadding()
+                    .padding(LocalPlayerAwarePaddingValues.current)
             ) {
                 TopAppBar(
                     modifier = Modifier

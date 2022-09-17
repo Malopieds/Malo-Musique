@@ -4,14 +4,17 @@ import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.with
-import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
@@ -23,6 +26,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -43,7 +48,6 @@ import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.transaction
 import it.vfsfitvnm.vimusic.ui.components.ChunkyButton
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
-import it.vfsfitvnm.vimusic.ui.components.Pager
 import it.vfsfitvnm.vimusic.ui.screens.albumRoute
 import it.vfsfitvnm.vimusic.ui.screens.artistRoute
 import it.vfsfitvnm.vimusic.ui.screens.viewPlaylistsRoute
@@ -129,17 +133,8 @@ fun InPlaylistMediaItemMenu(
         onDismiss = onDismiss,
         onRemoveFromPlaylist = {
             transaction {
-                Database.delete(
-                    SongPlaylistMap(
-                        songId = song.id,
-                        playlistId = playlistId,
-                        position = positionInPlaylist
-                    )
-                )
-                Database.decrementSongPositions(
-                    playlistId = playlistId,
-                    fromPosition = positionInPlaylist + 1
-                )
+                Database.move(playlistId, positionInPlaylist, Int.MAX_VALUE)
+                Database.delete(SongPlaylistMap(song.id, playlistId, Int.MAX_VALUE))
             }
         },
         modifier = modifier
@@ -172,13 +167,7 @@ fun NonQueuedMediaItemMenu(
                 )
             )
         },
-        onPlaySingle = {
-            binder?.stopRadio()
-            binder?.player?.forcePlay(mediaItem)
-        },
-        onPlayNext = {
-            binder?.player?.addNext(mediaItem)
-        },
+        onPlayNext = { binder?.player?.addNext(mediaItem) },
         onEnqueue = { binder?.player?.enqueue(mediaItem) },
         onRemoveFromPlaylist = onRemoveFromPlaylist,
         onHideFromDatabase = onHideFromDatabase,
@@ -219,7 +208,6 @@ fun BaseMediaItemMenu(
     onGoToEqualizer: (() -> Unit)? = null,
     onSetSleepTimer: (() -> Unit)? = null,
     onStartRadio: (() -> Unit)? = null,
-    onPlaySingle: (() -> Unit)? = null,
     onPlayNext: (() -> Unit)? = null,
     onEnqueue: (() -> Unit)? = null,
     onRemoveFromQueue: (() -> Unit)? = null,
@@ -237,7 +225,6 @@ fun BaseMediaItemMenu(
         onSetSleepTimer = onSetSleepTimer,
         onStartRadio = onStartRadio,
         onPlayNext = onPlayNext,
-        onPlaySingle = onPlaySingle,
         onEnqueue = onEnqueue,
         onAddToPlaylist = { playlist, position ->
             transaction {
@@ -274,7 +261,6 @@ fun MediaItemMenu(
     onGoToEqualizer: (() -> Unit)? = null,
     onSetSleepTimer: (() -> Unit)? = null,
     onStartRadio: (() -> Unit)? = null,
-    onPlaySingle: (() -> Unit)? = null,
     onPlayNext: (() -> Unit)? = null,
     onEnqueue: (() -> Unit)? = null,
     onHideFromDatabase: (() -> Unit)? = null,
@@ -392,17 +378,6 @@ fun MediaItemMenu(
                         )
                     }
 
-                    onPlaySingle?.let { onPlaySingle ->
-                        MenuEntry(
-                            icon = R.drawable.play,
-                            text = stringResource(R.string.play_single),
-                            onClick = {
-                                onDismiss()
-                                onPlaySingle()
-                            }
-                        )
-                    }
-
                     onPlayNext?.let { onPlayNext ->
                         MenuEntry(
                             icon = R.drawable.play_skip_forward,
@@ -466,12 +441,8 @@ fun MediaItemMenu(
                                         isShowingSleepTimerDialog = false
                                     }
                                 ) {
-                                    var hours by remember {
-                                        mutableStateOf(0)
-                                    }
-
-                                    var minutes by remember {
-                                        mutableStateOf(0)
+                                    var amount by remember {
+                                        mutableStateOf(1)
                                     }
 
                                     BasicText(
@@ -483,43 +454,54 @@ fun MediaItemMenu(
 
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(
+                                            space = 16.dp,
+                                            alignment = Alignment.CenterHorizontally
+                                        ),
                                         modifier = Modifier
                                             .padding(vertical = 16.dp)
                                     ) {
-                                        Pager(
-                                            selectedIndex = hours,
-                                            onSelectedIndex = {
-                                                hours = it
-                                            },
-                                            orientation = Orientation.Vertical,
+                                        Box(
+                                            contentAlignment = Alignment.Center,
                                             modifier = Modifier
-                                                .padding(horizontal = 8.dp)
-                                                .height(92.dp)
+                                                .alpha(if (amount <= 1) 0.5f else 1f)
+                                                .clip(CircleShape)
+                                                .clickable(enabled = amount > 1) { amount-- }
+                                                .size(48.dp)
+                                                .background(colorPalette.background0)
                                         ) {
-                                            repeat(12) {
-                                                BasicText(
-                                                    text = "$it h",
-                                                    style = typography.xs.semiBold
-                                                )
-                                            }
+                                            BasicText(
+                                                text = "-",
+                                                style = typography.xs.semiBold
+                                            )
                                         }
 
-                                        Pager(
-                                            selectedIndex = minutes,
-                                            onSelectedIndex = {
-                                                minutes = it
-                                            },
-                                            orientation = Orientation.Vertical,
+                                        Box(contentAlignment = Alignment.Center) {
+                                            BasicText(
+                                                text = "88h 88m",
+                                                style = typography.s.semiBold,
+                                                modifier = Modifier
+                                                    .alpha(0f)
+                                            )
+                                            BasicText(
+                                                text = "${amount / 6}h ${(amount % 6) * 10}m",
+                                                style = typography.s.semiBold
+                                            )
+                                        }
+
+                                        Box(
+                                            contentAlignment = Alignment.Center,
                                             modifier = Modifier
-                                                .padding(horizontal = 8.dp)
-                                                .height(72.dp)
+                                                .alpha(if (amount >= 60) 0.5f else 1f)
+                                                .clip(CircleShape)
+                                                .clickable(enabled = amount < 60) { amount++ }
+                                                .size(48.dp)
+                                                .background(colorPalette.background0)
                                         ) {
-                                            repeat(4) {
-                                                BasicText(
-                                                    text = "${it * 15} m",
-                                                    style = typography.xs.semiBold
-                                                )
-                                            }
+                                            BasicText(
+                                                text = "+",
+                                                style = typography.xs.semiBold
+                                            )
                                         }
                                     }
 
@@ -541,9 +523,9 @@ fun MediaItemMenu(
                                         text = stringResource(R.string.set),
                                             textStyle = typography.xs.semiBold.color(colorPalette.onAccent),
                                             shape = RoundedCornerShape(36.dp),
-                                            isEnabled = hours > 0 || minutes > 0,
+                                            isEnabled = amount > 0,
                                             onClick = {
-                                                binder?.startSleepTimer((hours * 60 + minutes * 15) * 60 * 1000L)
+                                                binder?.startSleepTimer(amount * 10 * 60 * 1000L)
                                                 isShowingSleepTimerDialog = false
                                             }
                                         )

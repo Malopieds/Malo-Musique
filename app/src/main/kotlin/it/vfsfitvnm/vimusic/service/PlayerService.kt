@@ -14,6 +14,7 @@ import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.media.MediaMetadata
+import android.media.audiofx.AudioEffect
 import android.media.session.MediaSession
 import android.media.session.PlaybackState
 import android.net.Uri
@@ -27,6 +28,7 @@ import androidx.core.content.ContextCompat.startForegroundService
 import androidx.core.content.edit
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import androidx.core.text.isDigitsOnly
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -74,6 +76,8 @@ import it.vfsfitvnm.vimusic.utils.broadCastPendingIntent
 import it.vfsfitvnm.vimusic.utils.exoPlayerDiskCacheMaxSizeKey
 import it.vfsfitvnm.vimusic.utils.findNextMediaItemById
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
+import it.vfsfitvnm.vimusic.utils.forceSeekToNext
+import it.vfsfitvnm.vimusic.utils.forceSeekToPrevious
 import it.vfsfitvnm.vimusic.utils.getEnum
 import it.vfsfitvnm.vimusic.utils.intent
 import it.vfsfitvnm.vimusic.utils.isInvincibilityEnabledKey
@@ -169,7 +173,8 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         isPersistentQueueEnabled = preferences.getBoolean(persistentQueueKey, false)
         isVolumeNormalizationEnabled = preferences.getBoolean(volumeNormalizationKey, false)
         isInvincibilityEnabled = preferences.getBoolean(isInvincibilityEnabledKey, false)
-        isShowingThumbnailInLockscreen = preferences.getBoolean(isShowingThumbnailInLockscreenKey, true)
+        isShowingThumbnailInLockscreen =
+            preferences.getBoolean(isShowingThumbnailInLockscreenKey, false)
 
         val cacheEvictor = when (val size =
             preferences.getEnum(exoPlayerDiskCacheMaxSizeKey, ExoPlayerDiskCacheMaxSize.`2GB`)) {
@@ -177,7 +182,23 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             else -> LeastRecentlyUsedCacheEvictor(size.bytes)
         }
 
-        cache = SimpleCache(cacheDir, cacheEvictor, StandaloneDatabaseProvider(this))
+        // TODO: Remove in a future release
+        val directory = cacheDir.resolve("exoplayer").also { directory ->
+            if (directory.exists()) return@also
+
+            directory.mkdir()
+
+            cacheDir.listFiles()?.forEach { file ->
+                if (file.isDirectory && file.name.length == 1 && file.name.isDigitsOnly() || file.extension == "uid") {
+                    if (!file.renameTo(directory.resolve(file.name))) {
+                        file.deleteRecursively()
+                    }
+                }
+            }
+
+            filesDir.resolve("coil").deleteRecursively()
+        }
+        cache = SimpleCache(directory, cacheEvictor, StandaloneDatabaseProvider(this))
 
         player = ExoPlayer.Builder(this, createRendersFactory(), createMediaSourceFactory())
             .setHandleAudioBecomingNoisy(true)
@@ -192,7 +213,10 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             .setUsePlatformDiagnostics(false)
             .build()
 
-        player.repeatMode = preferences.getInt(repeatModeKey, Player.REPEAT_MODE_OFF)
+        player.repeatMode = when (preferences.getInt(repeatModeKey, Player.REPEAT_MODE_ALL)) {
+            Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_ALL
+        }
         player.skipSilenceEnabled = preferences.getBoolean(skipSilenceKey, false)
         player.addListener(this)
         player.addAnalyticsListener(PlaybackStatsListener(false, this))
@@ -218,11 +242,7 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
 
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (!player.shouldBePlaying) {
-            if (isPersistentQueueEnabled) {
-                broadCastPendingIntent<NotificationDismissReceiver>().send()
-            } else {
-                stopSelf()
-            }
+            broadCastPendingIntent<NotificationDismissReceiver>().send()
         }
         super.onTaskRemoved(rootIntent)
     }
@@ -263,8 +283,12 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         val mediaItem =
             eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
 
-        query {
-            Database.incrementTotalPlayTimeMs(mediaItem.mediaId, playbackStats.totalPlayTimeMs)
+        val totalPlayTimeMs = playbackStats.totalPlayTimeMs
+
+        if (totalPlayTimeMs > 2000) {
+            query {
+                Database.incrementTotalPlayTimeMs(mediaItem.mediaId, totalPlayTimeMs)
+            }
         }
     }
 
@@ -272,6 +296,10 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         maybeRecoverPlaybackError()
         maybeNormalizeVolume()
         maybeProcessRadio()
+
+        if (mediaItem == null) {
+            bitmapProvider.listener?.invoke(null)
+        }
     }
 
     private fun maybeRecoverPlaybackError() {
@@ -371,6 +399,24 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         mediaSession.setMetadata(metadataBuilder.build())
     }
 
+    private fun sendOpenEqualizerIntent() {
+        sendBroadcast(
+            Intent(AudioEffect.ACTION_OPEN_AUDIO_EFFECT_CONTROL_SESSION).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
+                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, packageName)
+                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+            }
+        )
+    }
+
+    private fun sendCloseEqualizerIntent() {
+        sendBroadcast(
+            Intent(AudioEffect.ACTION_CLOSE_AUDIO_EFFECT_CONTROL_SESSION).apply {
+                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, player.audioSessionId)
+            }
+        )
+    }
+
     private val Player.androidPlaybackState: Int
         get() = when (playbackState) {
             Player.STATE_BUFFERING -> if (playWhenReady) PlaybackState.STATE_BUFFERING else PlaybackState.STATE_PAUSED
@@ -421,20 +467,24 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             if (notification == null) {
                 isNotificationStarted = false
                 makeInvincible(false)
-                stopForeground(true)
+                stopForeground(false)
+                sendCloseEqualizerIntent()
+                notificationManager?.cancel(NotificationId)
                 return
             }
 
             if (player.shouldBePlaying && !isNotificationStarted) {
                 isNotificationStarted = true
                 startForegroundService(this@PlayerService, intent<PlayerService>())
-                startForeground(NotificationId, notification())
+                startForeground(NotificationId, notification)
                 makeInvincible(false)
+                sendOpenEqualizerIntent()
             } else {
                 if (!player.shouldBePlaying) {
                     isNotificationStarted = false
                     stopForeground(false)
                     makeInvincible(true)
+                    sendCloseEqualizerIntent()
                 }
                 notificationManager?.notify(NotificationId, notification)
             }
@@ -681,9 +731,6 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
         var isLoadingRadio by mutableStateOf(false)
             private set
 
-        val lastBitmap: Bitmap?
-            get() = bitmapProvider.lastBitmap
-
         fun setBitmapListener(listener: ((Bitmap?) -> Unit)?) {
             bitmapProvider.listener = listener
         }
@@ -752,8 +799,8 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
     private class SessionCallback(private val player: Player) : MediaSession.Callback() {
         override fun onPlay() = player.play()
         override fun onPause() = player.pause()
-        override fun onSkipToPrevious() = player.seekToPrevious()
-        override fun onSkipToNext() = player.seekToNext()
+        override fun onSkipToPrevious() = player.forceSeekToPrevious()
+        override fun onSkipToNext() = player.forceSeekToNext()
         override fun onSeekTo(pos: Long) = player.seekTo(pos)
     }
 
@@ -762,8 +809,8 @@ class PlayerService : InvincibleService(), Player.Listener, PlaybackStatsListene
             when (intent.action) {
                 Action.pause.value -> player.pause()
                 Action.play.value -> player.play()
-                Action.next.value -> player.seekToNext()
-                Action.previous.value -> player.seekToPrevious()
+                Action.next.value -> player.forceSeekToNext()
+                Action.previous.value -> player.forceSeekToPrevious()
             }
         }
     }
