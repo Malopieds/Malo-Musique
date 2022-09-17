@@ -14,14 +14,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
@@ -40,12 +37,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
+import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.BuiltInPlaylist
@@ -65,6 +60,7 @@ import it.vfsfitvnm.vimusic.models.Playlist
 import it.vfsfitvnm.vimusic.models.SearchQuery
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
+import it.vfsfitvnm.vimusic.ui.components.badge
 import it.vfsfitvnm.vimusic.ui.components.themed.DropDownSection
 import it.vfsfitvnm.vimusic.ui.components.themed.DropDownSectionSpacer
 import it.vfsfitvnm.vimusic.ui.components.themed.DropDownTextItem
@@ -77,11 +73,9 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.BuiltInPlaylistItem
 import it.vfsfitvnm.vimusic.ui.views.PlaylistPreviewItem
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.color
-import it.vfsfitvnm.vimusic.utils.drawCircle
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
 import it.vfsfitvnm.vimusic.utils.isFirstLaunchKey
@@ -207,7 +201,7 @@ fun HomeScreen() {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
+                contentPadding = LocalPlayerAwarePaddingValues.current,
                 modifier = Modifier
                     .background(colorPalette.background0)
                     .fillMaxSize()
@@ -224,26 +218,7 @@ fun HomeScreen() {
                             modifier = Modifier
                                 .clickable { settingsRoute() }
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .run {
-                                    if (isFirstLaunch) {
-                                        drawBehind {
-                                            drawCircle(
-                                                color = colorPalette.accent,
-                                                center = Offset(
-                                                    x = size.width,
-                                                    y = 0.dp.toPx()
-                                                ),
-                                                radius = 4.dp.toPx(),
-                                                shadow = Shadow(
-                                                    color = colorPalette.accent,
-                                                    blurRadius = 4.dp.toPx()
-                                                )
-                                            )
-                                        }
-                                    } else {
-                                        this
-                                    }
-                                }
+                                .badge(color = colorPalette.red, isDisplayed = isFirstLaunch)
                                 .size(24.dp)
                         )
                         Image(
@@ -381,6 +356,7 @@ fun HomeScreen() {
                                 colorTint = colorPalette.red,
                                 name = stringResource(R.string.fav),
                                 modifier = Modifier
+                                    .animateItemPlacement()
                                     .padding(all = 8.dp)
                                     .clickable(
                                         indication = rememberRipple(bounded = true),
@@ -396,6 +372,7 @@ fun HomeScreen() {
                                 colorTint = colorPalette.blue,
                                 name = stringResource(R.string.offline),
                                 modifier = Modifier
+                                    .animateItemPlacement()
                                     .padding(all = 8.dp)
                                     .clickable(
                                         indication = rememberRipple(bounded = true),

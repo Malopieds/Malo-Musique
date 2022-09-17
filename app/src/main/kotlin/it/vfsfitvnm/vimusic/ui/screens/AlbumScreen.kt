@@ -10,15 +10,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -43,6 +40,7 @@ import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
+import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
@@ -64,7 +62,6 @@ import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.styling.shimmer
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.bold
 import it.vfsfitvnm.vimusic.utils.center
@@ -81,7 +78,6 @@ import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 
 @ExperimentalAnimationApi
 @Composable
@@ -93,7 +89,31 @@ fun AlbumScreen(browseId: String) {
             album
                 ?.takeIf { album.timestamp != null }
                 ?.let(Result.Companion::success)
-                ?: fetchAlbum(browseId)
+                ?: YouTube.album(browseId)?.map { youtubeAlbum ->
+                    Database.upsert(
+                        Album(
+                            id = browseId,
+                            title = youtubeAlbum.title,
+                            thumbnailUrl = youtubeAlbum.thumbnail?.url,
+                            year = youtubeAlbum.year,
+                            authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
+                            shareUrl = youtubeAlbum.url,
+                            timestamp = System.currentTimeMillis()
+                        ),
+                        youtubeAlbum.items?.mapIndexedNotNull { position, albumItem ->
+                            albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
+                                Database.insert(mediaItem)
+                                SongAlbumMap(
+                                    songId = mediaItem.mediaId,
+                                    albumId = browseId,
+                                    position = position
+                                )
+                            }
+                        } ?: emptyList()
+                    )
+
+                    null
+                }
         }.distinctUntilChanged()
     }.collectAsState(initial = null, context = Dispatchers.IO)
 
@@ -113,7 +133,7 @@ fun AlbumScreen(browseId: String) {
 
             LazyColumn(
                 state = lazyListState,
-                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
+                contentPadding = LocalPlayerAwarePaddingValues.current,
                 modifier = Modifier
                     .background(colorPalette.background0)
                     .fillMaxSize()
@@ -306,9 +326,6 @@ fun AlbumScreen(browseId: String) {
                                                         albumResult
                                                             ?.getOrNull()
                                                             ?.let(Database::delete)
-                                                        runBlocking(Dispatchers.IO) {
-                                                            fetchAlbum(browseId)
-                                                        }
                                                     }
                                                 }
                                             )
@@ -402,36 +419,4 @@ private fun LoadingOrError(
             }
         }
     }
-}
-
-private suspend fun fetchAlbum(browseId: String): Result<Album>? {
-    return YouTube.album(browseId)
-        ?.map { youtubeAlbum ->
-            val album = Album(
-                id = browseId,
-                title = youtubeAlbum.title,
-                thumbnailUrl = youtubeAlbum.thumbnail?.url,
-                year = youtubeAlbum.year,
-                authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
-                shareUrl = youtubeAlbum.url,
-                timestamp = System.currentTimeMillis()
-            )
-
-            Database.upsert(album)
-
-            youtubeAlbum.items?.forEachIndexed { position, albumItem ->
-                albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
-                    Database.insert(mediaItem)
-                    Database.upsert(
-                        SongAlbumMap(
-                            songId = mediaItem.mediaId,
-                            albumId = browseId,
-                            position = position
-                        )
-                    )
-                }
-            }
-
-            album
-        }
 }
