@@ -163,6 +163,9 @@ fun Thumbnail(
                                 if (prevMediaItem != null && dragAmount > 0 || nextMediaItem != null && dragAmount < 0) {
                                     xOffset += dragAmount / 2
                                 }
+                            ) { change, dragAmount ->
+                                change.consume()
+                                xOffset += dragAmount / 2
                             }
                         }
                         .combinedClickable(

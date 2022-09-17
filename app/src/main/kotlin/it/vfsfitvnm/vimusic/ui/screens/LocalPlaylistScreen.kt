@@ -1,21 +1,19 @@
+
 package it.vfsfitvnm.vimusic.ui.screens
 
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicText
@@ -29,16 +27,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import it.vfsfitvnm.reordering.ReorderingLazyColumn
+import it.vfsfitvnm.reordering.animateItemPlacement
+import it.vfsfitvnm.reordering.draggedItem
 import it.vfsfitvnm.reordering.rememberReorderingState
-import it.vfsfitvnm.reordering.verticalDragAfterLongPressToReorder
+import it.vfsfitvnm.reordering.reorder
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.Database
+import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.DetailedSong
@@ -57,16 +56,20 @@ import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.SongItem
-import it.vfsfitvnm.vimusic.utils.add
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
 import it.vfsfitvnm.vimusic.utils.secondary
 import it.vfsfitvnm.vimusic.utils.semiBold
+import it.vfsfitvnm.vimusic.utils.toMediaItem
+import it.vfsfitvnm.youtubemusic.YouTube
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
+@ExperimentalFoundationApi
 @ExperimentalAnimationApi
 @Composable
 fun LocalPlaylistScreen(playlistId: Long) {
@@ -80,15 +83,22 @@ fun LocalPlaylistScreen(playlistId: Long) {
         globalRoutes()
 
         host {
-            val hapticFeedback = LocalHapticFeedback.current
-            val menuState = LocalMenuState.current
-
-            val binder = LocalPlayerServiceBinder.current
             val (colorPalette, typography) = LocalAppearance.current
+            val menuState = LocalMenuState.current
+            val binder = LocalPlayerServiceBinder.current
 
             val thumbnailSize = Dimensions.thumbnails.song.px
 
-            val reorderingState = rememberReorderingState(playlistWithSongs.songs)
+            val reorderingState = rememberReorderingState(
+                lazyListState = lazyListState,
+                key = playlistWithSongs.songs,
+                onDragEnd = { fromIndex, toIndex ->
+                    query {
+                        Database.move(playlistWithSongs.playlist.id, fromIndex, toIndex)
+                    }
+                },
+                extraItemCount = 1
+            )
 
             var isRenaming by rememberSaveable {
                 mutableStateOf(false)
@@ -128,119 +138,154 @@ fun LocalPlaylistScreen(playlistId: Long) {
                 )
             }
 
-            LazyColumn(
-                state = lazyListState,
-                contentPadding = WindowInsets.systemBars.asPaddingValues().add(bottom = Dimensions.collapsedPlayer),
+            ReorderingLazyColumn(
+                reorderingState = reorderingState,
+                contentPadding = LocalPlayerAwarePaddingValues.current,
                 modifier = Modifier
                     .background(colorPalette.background0)
                     .fillMaxSize()
             ) {
                 item {
-                    TopAppBar(
-                        modifier = Modifier
-                            .height(52.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.chevron_back),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(colorPalette.text),
+                    Column {
+                        TopAppBar(
                             modifier = Modifier
-                                .clickable(onClick = pop)
-                                .padding(vertical = 8.dp, horizontal = 16.dp)
-                                .size(24.dp)
-                        )
-                    }
-                }
+                                .height(52.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.chevron_back),
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(colorPalette.text),
+                                modifier = Modifier
+                                    .clickable(onClick = pop)
+                                    .padding(vertical = 8.dp, horizontal = 16.dp)
+                                    .size(24.dp)
+                            )
+                        }
 
-                item {
-                    Column(
-                        modifier = Modifier
-                            .padding(top = 16.dp, bottom = 8.dp)
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        BasicText(
-                            text = playlistWithSongs.playlist.name,
-                            style = typography.m.semiBold
-                        )
-
-                        BasicText(
-                            text = "${playlistWithSongs.songs.size}" + stringResource(R.string.songs),
-                            style = typography.xxs.semiBold.secondary
-                        )
-                    }
-                }
-
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .zIndex(1f)
-                            .padding(horizontal = 8.dp)
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.shuffle),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(colorPalette.text),
+                        Column(
                             modifier = Modifier
-                                .clickable(enabled = playlistWithSongs.songs.isNotEmpty()) {
-                                    binder?.stopRadio()
-                                    binder?.player?.forcePlayFromBeginning(
-                                        playlistWithSongs.songs
-                                            .shuffled()
-                                            .map(DetailedSong::asMediaItem)
-                                    )
-                                }
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
-                                .size(20.dp)
-                        )
+                                .padding(top = 16.dp, bottom = 8.dp)
+                                .padding(horizontal = 16.dp)
+                        ) {
+                            BasicText(
+                                text = playlistWithSongs.playlist.name,
+                                style = typography.m.semiBold
+                            )
 
-                        Image(
-                            painter = painterResource(R.drawable.ellipsis_horizontal),
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(colorPalette.text),
+                            BasicText(
+                                text = "${playlistWithSongs.songs.size} " + stringResource(R.string.songs),,
+                                style = typography.xxs.semiBold.secondary
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.End,
                             modifier = Modifier
-                                .clickable {
-                                    menuState.display {
-                                        Menu {
-                                            MenuEntry(
-                                                icon = R.drawable.enqueue,
-                                                text = stringResource(R.string.enqueue),
-                                                isEnabled = playlistWithSongs.songs.isNotEmpty(),
-                                                onClick = {
-                                                    menuState.hide()
-                                                    binder?.player?.enqueue(
-                                                        playlistWithSongs.songs.map(
-                                                            DetailedSong::asMediaItem
+                                .fillMaxWidth()
+                                .zIndex(1f)
+                                .padding(horizontal = 8.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.shuffle),
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(colorPalette.text),
+                                modifier = Modifier
+                                    .clickable(enabled = playlistWithSongs.songs.isNotEmpty()) {
+                                        binder?.stopRadio()
+                                        binder?.player?.forcePlayFromBeginning(
+                                            playlistWithSongs.songs
+                                                .shuffled()
+                                                .map(DetailedSong::asMediaItem)
+                                        )
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .size(20.dp)
+                            )
+
+                            Image(
+                                painter = painterResource(R.drawable.ellipsis_horizontal),
+                                contentDescription = null,
+                                colorFilter = ColorFilter.tint(colorPalette.text),
+                                modifier = Modifier
+                                    .clickable {
+                                        menuState.display {
+                                            Menu {
+                                                MenuEntry(
+                                                    icon = R.drawable.enqueue,
+                                                    text = stringResource(R.string.enqueue),,
+                                                    isEnabled = playlistWithSongs.songs.isNotEmpty(),
+                                                    onClick = {
+                                                        menuState.hide()
+                                                        binder?.player?.enqueue(
+                                                            playlistWithSongs.songs.map(
+                                                                DetailedSong::asMediaItem
+                                                            )
                                                         )
+                                                    }
+                                                )
+
+                                                MenuEntry(
+                                                    icon = R.drawable.pencil,
+                                                    text = stringResource(R.string.rename),
+                                                    onClick = {
+                                                        menuState.hide()
+                                                        isRenaming = true
+                                                    }
+                                                )
+
+                                                playlistWithSongs.playlist.browseId?.let { browseId ->
+                                                    MenuEntry(
+                                                        icon = R.drawable.sync,
+                                                        text = "Sync",
+                                                        onClick = {
+                                                            menuState.hide()
+                                                            transaction {
+                                                                runBlocking(Dispatchers.IO) {
+                                                                    withContext(Dispatchers.IO) {
+                                                                        YouTube.playlist(browseId)?.map {
+                                                                            it.next()
+                                                                        }?.map { playlist ->
+                                                                            playlist.copy(items = playlist.items?.filter { it.info.endpoint != null })
+                                                                        }
+                                                                    }
+                                                                }?.getOrNull()?.let { remotePlaylist ->
+                                                                    Database.clearPlaylist(playlistWithSongs.playlist.id)
+
+                                                                    remotePlaylist.items?.forEachIndexed { index, song ->
+                                                                        song.toMediaItem(browseId, remotePlaylist)?.let { mediaItem ->
+                                                                            Database.insert(mediaItem)
+
+                                                                            Database.insert(
+                                                                                SongPlaylistMap(
+                                                                                    songId = mediaItem.mediaId,
+                                                                                    playlistId = playlistId,
+                                                                                    position = index
+                                                                                )
+                                                                            )
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     )
                                                 }
-                                            )
 
-                                            MenuEntry(
-                                                icon = R.drawable.pencil,
-                                                text = stringResource(R.string.rename),
-                                                onClick = {
-                                                    menuState.hide()
-                                                    isRenaming = true
-                                                }
-                                            )
-
-                                            MenuEntry(
-                                                icon = R.drawable.trash,
-                                                text = stringResource(R.string.delete),
-                                                onClick = {
-                                                    menuState.hide()
-                                                    isDeleting = true
-                                                }
-                                            )
+                                                MenuEntry(
+                                                    icon = R.drawable.trash,
+                                                    text = stringResource(R.string.delete),
+                                                    onClick = {
+                                                        menuState.hide()
+                                                        isDeleting = true
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
-                                .size(20.dp)
-                        )
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .size(20.dp)
+                            )
+                        }
                     }
                 }
 
@@ -252,7 +297,6 @@ fun LocalPlaylistScreen(playlistId: Long) {
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
-                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -274,47 +318,18 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                 contentDescription = null,
                                 colorFilter = ColorFilter.tint(colorPalette.textSecondary),
                                 modifier = Modifier
-                                    .clickable {}
+                                    .clickable { }
+                                    .reorder(
+                                        reorderingState = reorderingState,
+                                        index = index
+                                    )
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                                     .size(20.dp)
                             )
                         },
                         modifier = Modifier
-                            .verticalDragAfterLongPressToReorder(
-                                reorderingState = reorderingState,
-                                lazyListState = lazyListState,
-                                index = index,
-                                onDragStart = {
-                                    hapticFeedback.performHapticFeedback(
-                                        HapticFeedbackType.LongPress
-                                    )
-                                },
-                                onDragEnd = { reachedIndex ->
-                                    transaction {
-                                        if (index > reachedIndex) {
-                                            Database.incrementSongPositions(
-                                                playlistId = playlistWithSongs.playlist.id,
-                                                fromPosition = reachedIndex,
-                                                toPosition = index - 1
-                                            )
-                                        } else if (index < reachedIndex) {
-                                            Database.decrementSongPositions(
-                                                playlistId = playlistWithSongs.playlist.id,
-                                                fromPosition = index + 1,
-                                                toPosition = reachedIndex
-                                            )
-                                        }
-
-                                        Database.update(
-                                            SongPlaylistMap(
-                                                songId = playlistWithSongs.songs[index].id,
-                                                playlistId = playlistWithSongs.playlist.id,
-                                                position = reachedIndex
-                                            )
-                                        )
-                                    }
-                                }
-                            )
+                            .animateItemPlacement(reorderingState = reorderingState)
+                            .draggedItem(reorderingState = reorderingState, index = index)
                     )
                 }
             }

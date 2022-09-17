@@ -27,16 +27,16 @@ dependencyResolutionManagement {
 
             library("compose-activity", "androidx.activity", "activity-compose").version("1.5.1")
 
-            library("compose-coil", "io.coil-kt", "coil-compose").version("2.1.0")
+            library("compose-coil", "io.coil-kt", "coil-compose").version("2.2.1")
 
-            version("room", "2.5.0-alpha02")
+            version("room", "2.5.0-alpha03")
             library("room", "androidx.room", "room-ktx").versionRef("room")
             library("room-compiler", "androidx.room", "room-compiler").versionRef("room")
 
             version("media3", "1.0.0-beta02")
             library("exoplayer", "androidx.media3", "media3-exoplayer").versionRef("media3")
 
-            version("ktor", "2.0.3")
+            version("ktor", "2.1.0")
             library("ktor-client-core", "io.ktor", "ktor-client-core").versionRef("ktor")
             library("ktor-client-cio", "io.ktor", "ktor-client-okhttp").versionRef("ktor")
             library("ktor-client-content-negotiation", "io.ktor", "ktor-client-content-negotiation").versionRef("ktor")

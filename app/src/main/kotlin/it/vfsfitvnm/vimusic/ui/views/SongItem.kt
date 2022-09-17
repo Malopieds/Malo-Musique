@@ -49,10 +49,7 @@ fun SongItem(
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     SongItem(
-        thumbnailModel = ImageRequest.Builder(LocalContext.current)
-            .diskCacheKey(mediaItem.mediaId)
-            .data(mediaItem.mediaMetadata.artworkUri.thumbnail(thumbnailSize))
-            .build(),
+        thumbnailModel = mediaItem.mediaMetadata.artworkUri.thumbnail(thumbnailSize),
         title = mediaItem.mediaMetadata.title!!.toString(),
         authors = mediaItem.mediaMetadata.artist.toString(),
         durationText = mediaItem.mediaMetadata.extras?.getString("durationText") ?: "?",

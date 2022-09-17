@@ -80,7 +80,7 @@ fun MenuEntry(
             contentDescription = null,
             colorFilter = ColorFilter.tint(colorPalette.text),
             modifier = Modifier
-                .size(14.dp)
+                .size(15.dp)
         )
 
         Column {

@@ -1,17 +1,18 @@
 package it.vfsfitvnm.vimusic.models
 
+import androidx.compose.runtime.Immutable
 import androidx.room.Relation
 
+@Immutable
 class DetailedSongWithContentLength(
     id: String,
     title: String,
     artistsText: String? = null,
     durationText: String,
     thumbnailUrl: String?,
-    likedAt: Long? = null,
     totalPlayTimeMs: Long = 0,
     albumId: String?,
-    artists: List<Artist>?,
+    artists: List<Info>?,
     @Relation(
         entity = Format::class,
         entityColumn = "songId",
@@ -19,4 +20,4 @@ class DetailedSongWithContentLength(
         projection = ["contentLength"]
     )
     val contentLength: Long?
-) : DetailedSong(id, title, artistsText, durationText, thumbnailUrl, likedAt, totalPlayTimeMs, albumId, artists)
+) : DetailedSong(id, title, artistsText, durationText, thumbnailUrl, totalPlayTimeMs, albumId, artists)
