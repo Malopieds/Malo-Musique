@@ -259,6 +259,8 @@ interface Database {
                 thumbnailUrl = null,
                 shareUrl = null,
                 timestamp = null,
+                numberItems = null,
+                length = null,
             ).also(::insert)
 
             upsert(

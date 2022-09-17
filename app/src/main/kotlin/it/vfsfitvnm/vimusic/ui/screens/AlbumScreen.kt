@@ -182,6 +182,16 @@ fun AlbumScreen(browseId: String) {
                                             .padding(top = 8.dp)
                                     )
                                 }
+
+                                album.let { album ->
+                                    BasicText(
+                                        text = album.numberItems + " • " +  album.length,
+                                        style = typography.xs.secondary,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                    )
+                                }
                             }
                         }
                     } ?: albumResult?.exceptionOrNull()?.let { throwable ->
@@ -414,7 +424,9 @@ private suspend fun fetchAlbum(browseId: String): Result<Album>? {
                 year = youtubeAlbum.year,
                 authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
                 shareUrl = youtubeAlbum.url,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
+                numberItems = youtubeAlbum.numberItems,
+                length = youtubeAlbum.length
             )
 
             Database.upsert(album)
