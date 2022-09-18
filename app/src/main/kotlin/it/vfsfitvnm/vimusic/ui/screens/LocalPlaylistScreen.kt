@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.reordering.ReorderingLazyColumn
@@ -173,7 +174,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                             )
 
                             BasicText(
-                                text = "${playlistWithSongs.songs.size} " + stringResource(R.string.songs),,
+                                text = "${playlistWithSongs.songs.size} " + stringResource(R.string.songs),
                                 style = typography.xxs.semiBold.secondary
                             )
                         }
@@ -213,7 +214,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                             Menu {
                                                 MenuEntry(
                                                     icon = R.drawable.enqueue,
-                                                    text = stringResource(R.string.enqueue),,
+                                                    text = stringResource(R.string.enqueue),
                                                     isEnabled = playlistWithSongs.songs.isNotEmpty(),
                                                     onClick = {
                                                         menuState.hide()
@@ -295,8 +296,8 @@ fun LocalPlaylistScreen(playlistId: Long) {
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
-                        song = song,
-                        thumbnailSize = thumbnailSize,
+                        /*song = song,
+                        thumbnailSize = thumbnailSize,*/
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
