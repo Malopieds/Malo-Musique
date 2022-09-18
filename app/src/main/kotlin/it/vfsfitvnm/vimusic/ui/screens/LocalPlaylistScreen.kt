@@ -296,8 +296,8 @@ fun LocalPlaylistScreen(playlistId: Long) {
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
-                        /*song = song,
-                        thumbnailSize = thumbnailSize,*/
+                        song = song,
+                        thumbnailSize = thumbnailSize,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -306,6 +306,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                 ), index
                             )
                         },
+                        swipeShow = true,
                         menuContent = {
                             InPlaylistMediaItemMenu(
                                 playlistId = playlistId,
@@ -330,7 +331,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                         },
                         modifier = Modifier
                             .animateItemPlacement(reorderingState = reorderingState)
-                            .draggedItem(reorderingState = reorderingState, index = index)
+                            .draggedItem(reorderingState = reorderingState, index = index),
                     )
                 }
             }

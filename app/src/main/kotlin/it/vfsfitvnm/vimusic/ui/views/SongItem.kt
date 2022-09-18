@@ -138,7 +138,6 @@ fun SongItem(
             }
         },
         menuContent = menuContent,
-        backgroundColor = backgroundColor,
         trailingContent = trailingContent,
         modifier = modifier,
     )
@@ -157,7 +156,6 @@ fun SongItem(
     startContent: @Composable () -> Unit,
     menuContent: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    backgroundColor: Color? = null,
     trailingContent: (@Composable () -> Unit)? = null
 ) {
     val menuState = LocalMenuState.current

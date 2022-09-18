@@ -7,6 +7,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -61,11 +62,17 @@ fun Thumbnail(
         mutableStateOf(0f)
     }
 
+    var saveOffset by remember { mutableStateOf(0f) }
+
     val offsetAnimation by animateDpAsState(targetValue = 0.dp)
-    val offsetReturn by animateFloatAsState(targetValue = 0f)
+    val offsetReturn by animateFloatAsState(targetValue = 0f, tween(1000))
 
     var visible by remember {
         mutableStateOf(true)
+    }
+
+    var changed by remember {
+        mutableStateOf(0)
     }
 
     val error by rememberError(player)
@@ -75,16 +82,59 @@ fun Thumbnail(
     AnimatedContent(
         targetState = mediaItemIndex,
         transitionSpec = {
-            if (visible){
-                val slideDirection =
-                    if (targetState > initialState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
-                (slideIntoContainer(slideDirection) + fadeIn() with
-                        slideOutOfContainer(slideDirection) + fadeOut()).using(
-                    SizeTransform(clip = false))
-            }else {
-                xOffset = offsetReturn
-                visible = true
-                ContentTransform(targetContentEnter = fadeIn(), initialContentExit = fadeOut())
+            val duration = 500
+            val slideDirection =
+                if (targetState > initialState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
+            val baseOffset =
+                if (targetState > initialState) 10 else -10
+
+            if (xOffset == 0f){
+                changed = 0
+                ContentTransform(
+                    targetContentEnter = slideIntoContainer(
+                        towards = slideDirection,
+                        animationSpec = tween(duration),
+                    ) + fadeIn(
+                        animationSpec = tween(duration)
+                    ) + scaleIn(
+                        initialScale = 0.85f,
+                        animationSpec = tween(duration)
+                    ),
+                    initialContentExit = slideOutOfContainer(
+                        towards = slideDirection,
+                        animationSpec = tween(duration),
+                    ) + fadeOut(
+                        animationSpec = tween(duration)
+                    ) + scaleOut(
+                        targetScale = 0.85f,
+                        animationSpec = tween(duration)
+                    ),
+                    sizeTransform = SizeTransform(clip = false)
+                )
+            }
+            else{
+                if (changed == 3){ //Because The Animation is called 4 times
+                    xOffset = 0f
+                    changed = 0
+                }
+                else{
+                    changed++
+                    xOffset = 0.00001f
+                    visible = true
+                }
+                ContentTransform(
+                    targetContentEnter = slideIntoContainer(
+                        towards = slideDirection,
+                        animationSpec = tween(duration),
+                        initialOffset = { baseOffset }
+                    ),
+                    initialContentExit = slideOutOfContainer(
+                        towards = slideDirection,
+                        animationSpec = tween(duration),
+                        targetOffset = { 0 },
+                    ),
+                    sizeTransform = SizeTransform(clip = false)
+                )
             }
         },
         contentAlignment = Alignment.Center,
@@ -155,7 +205,7 @@ fun Thumbnail(
                                         visible = false
                                         binder.player.seekToNextMediaItem()
                                     } else {
-                                        xOffset = 0f
+                                        xOffset = offsetReturn
                                     }
                                 }
                             ) { change, dragAmount ->

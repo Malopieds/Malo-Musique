@@ -1,8 +1,8 @@
-<div align="center">
+<33695div align="center">
     <img src="./app/src/main/ic_launcher-playstore.png" width="128" height="128" style="display: block; margin: 0 auto"/>
     <h1>ViMusic</h1>
     <p>An Android application for streaming music from YouTube Music</p>
-</div>
+</33695div>
 
 ---
 

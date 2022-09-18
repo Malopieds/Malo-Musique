@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Immutable
-@Entity
+@Entity(tableName = "Album")
 data class Album(
     @PrimaryKey val id: String,
     val title: String?,

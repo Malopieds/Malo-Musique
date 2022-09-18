@@ -45,12 +45,7 @@ import it.vfsfitvnm.vimusic.ui.components.SeekBar
 import it.vfsfitvnm.vimusic.ui.screens.artistRoute
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.favoritesIcon
-import it.vfsfitvnm.vimusic.utils.bold
-import it.vfsfitvnm.vimusic.utils.forceSeekToNext
-import it.vfsfitvnm.vimusic.utils.forceSeekToPrevious
-import it.vfsfitvnm.vimusic.utils.rememberRepeatMode
-import it.vfsfitvnm.vimusic.utils.secondary
-import it.vfsfitvnm.vimusic.utils.semiBold
+import it.vfsfitvnm.vimusic.utils.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -69,6 +64,9 @@ fun Controls(
 
     val binder = LocalPlayerServiceBinder.current
     binder?.player ?: return
+
+    val nullableMediaItem by rememberMediaItem(binder.player)
+    val mediaItem = nullableMediaItem ?: return
 
     val repeatMode by rememberRepeatMode(binder.player)
 
@@ -115,7 +113,7 @@ fun Controls(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .clickable {
-                    onGoToArtist?.let { onGoToArtist ->
+                    onGoToArtist.let { onGoToArtist ->
                         mediaItem.mediaMetadata.extras?.getStringArrayList("artistNames")
                             ?.let { artistNames ->
                                 mediaItem.mediaMetadata.extras?.getStringArrayList("artistIds")
