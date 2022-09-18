@@ -98,7 +98,9 @@ fun AlbumScreen(browseId: String) {
                             year = youtubeAlbum.year,
                             authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
                             shareUrl = youtubeAlbum.url,
-                            timestamp = System.currentTimeMillis()
+                            timestamp = System.currentTimeMillis(),
+                            numberItems = youtubeAlbum.numberItems,
+                            length = youtubeAlbum.length
                         ),
                         youtubeAlbum.items?.mapIndexedNotNull { position, albumItem ->
                             albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
@@ -430,7 +432,6 @@ private fun LoadingOrError(
         }
     }
 }
-<<<<<<< HEAD
 
 private suspend fun fetchAlbum(browseId: String): Result<Album>? {
     return YouTube.album(browseId)
@@ -447,7 +448,7 @@ private suspend fun fetchAlbum(browseId: String): Result<Album>? {
                 length = youtubeAlbum.length
             )
 
-            Database.upsert(album)
+            //Database.upsert(album)
 
             youtubeAlbum.items?.forEachIndexed { position, albumItem ->
                 albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
@@ -465,5 +466,3 @@ private suspend fun fetchAlbum(browseId: String): Result<Album>? {
             album
         }
 }
-=======
->>>>>>> 0f8c1c800f5304470951986c613c9c96e005ebd2
