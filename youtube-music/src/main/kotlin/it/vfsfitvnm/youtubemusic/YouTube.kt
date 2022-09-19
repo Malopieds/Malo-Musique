@@ -16,18 +16,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import it.vfsfitvnm.youtubemusic.models.BrowseResponse
-import it.vfsfitvnm.youtubemusic.models.ContinuationResponse
-import it.vfsfitvnm.youtubemusic.models.GetQueueResponse
-import it.vfsfitvnm.youtubemusic.models.GetSearchSuggestionsResponse
-import it.vfsfitvnm.youtubemusic.models.MusicResponsiveListItemRenderer
-import it.vfsfitvnm.youtubemusic.models.MusicShelfRenderer
-import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
-import it.vfsfitvnm.youtubemusic.models.NextResponse
-import it.vfsfitvnm.youtubemusic.models.PlayerResponse
-import it.vfsfitvnm.youtubemusic.models.Runs
-import it.vfsfitvnm.youtubemusic.models.SearchResponse
-import it.vfsfitvnm.youtubemusic.models.ThumbnailRenderer
+import it.vfsfitvnm.youtubemusic.models.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -990,7 +979,8 @@ object YouTube {
         val thumbnail: ThumbnailRenderer.MusicThumbnailRenderer.Thumbnail.Thumbnail?,
         val shuffleEndpoint: NavigationEndpoint.Endpoint.Watch?,
         val radioEndpoint: NavigationEndpoint.Endpoint.Watch?,
-        val songs: List<String>
+        val songs: List<MusicShelfRenderer.Content>?,
+        val albums: List<MusicCarouselShelfRenderer.Content>?
     )
 
     suspend fun artist(browseId: String): Result<Artist>? {
@@ -1030,72 +1020,30 @@ object YouTube {
                     ?.buttonRenderer
                     ?.navigationEndpoint
                     ?.watchEndpoint,
-                songs = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
-            )
-        }
-    }
-
-    data class NewRalease(
-        val name: List<PlaylistOrAlbum>?,
-    )
-
-    suspend fun newRelease(): Result<NewRalease>?{
-        return browse("FEmusic_new_releases")?.map { body ->
-            print(body.contents
-                ?.singleColumnBrowseResultsRenderer
-                ?.tabs
-                ?.get(0)
-                ?.tabRenderer
-                ?.content
-                ?.sectionListRenderer
-                ?.contents
-                ?.get(0)
-                ?.musicCarouselShelfRenderer
-                ?.contents)
-            val playlistNewRelease: List<PlaylistOrAlbum> = emptyList()
-            val listContent = body
-                .contents
-                .singleColumnBrowseResultsRenderer
-                ?.tabs
-                ?.get(0)
-                ?.tabRenderer
-                ?.content
-                ?.sectionListRenderer
-                ?.contents
-                ?.get(0)
-                ?.musicCarouselShelfRenderer
-                ?.contents?.get(0)
-            ?.musicTwoRowItemRenderer
-                ?.navigationEndpoint
-                ?.browseEndpoint
-                ?.browseId.toString()
-            print(listContent)
-            /*if (listContent != null) {
-                for (item in listContent){
-                    val browseId = item
-                        .musicTwoRowItemRenderer
-                        ?.navigationEndpoint
-                        ?.browseEndpoint
-                        ?.browseId
-                    val playlistOrAlbum = playlistOrAlbum(browseId ?: "")
-                    print(playlistOrAlbum)
-                    playlistNewRelease + playlistOrAlbum
-
-
-                }
-            }*/
-            NewRalease(playlistNewRelease)
-        }
-    }
-
-    data class ArtistSongs(
-        val name: List<String>,
-    )
-
-    suspend fun artistSongs(browseId: String): Result<ArtistSongs>? {
-        return browse(browseId)?.map { body ->
-            ArtistSongs(
-                name = listOf(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)!!.text)
+                songs = body
+                    .contents
+                    .singleColumnBrowseResultsRenderer
+                    ?.tabs
+                    ?.get(0)
+                    ?.tabRenderer
+                    ?.content
+                    ?.sectionListRenderer
+                    ?.contents
+                    ?.get(0)
+                    ?.musicShelfRenderer
+                    ?.contents,
+                albums = body
+                    .contents
+                    .singleColumnBrowseResultsRenderer
+                    ?.tabs
+                    ?.get(0)
+                    ?.tabRenderer
+                    ?.content
+                    ?.sectionListRenderer
+                    ?.contents
+                    ?.get(1)
+                    ?.musicCarouselShelfRenderer
+                    ?.contents
             )
         }
     }
