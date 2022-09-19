@@ -265,6 +265,8 @@ interface Database {
                 thumbnailUrl = null,
                 shareUrl = null,
                 timestamp = null,
+                numberItems = null,
+                length = null
             ).also(::insert)
 
             upsert(
@@ -359,7 +361,7 @@ interface Database {
     views = [
         SortedSongPlaylistMap::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = true,
     autoMigrations = [
         AutoMigration(from = 1, to = 2),
@@ -392,7 +394,8 @@ abstract class DatabaseInitializer protected constructor() : RoomDatabase() {
                     .addMigrations(
                         From8To9Migration(),
                         From10To11Migration(),
-                        From14To15Migration()
+                        From14To15Migration(),
+                        From17To18Migration()
                     )
                     .build()
             }
@@ -506,6 +509,22 @@ abstract class DatabaseInitializer protected constructor() : RoomDatabase() {
             it.execSQL("INSERT INTO Song_new(id, title, artistsText, durationText, thumbnailUrl, lyrics, likedAt, totalPlayTimeMs) SELECT id, title, artistsText, durationText, thumbnailUrl, lyrics, likedAt, totalPlayTimeMs FROM Song;")
             it.execSQL("DROP TABLE Song;")
             it.execSQL("ALTER TABLE Song_new RENAME TO Song;")
+
+        }
+    }
+
+    class From17To18Migration : Migration(17, 18) {
+        override fun migrate(it: SupportSQLiteDatabase) {
+
+            it.execSQL("ALTER TABLE Album ADD COLUMN numberItems TEXT DEFAULT NULL")
+            it.execSQL("ALTER TABLE Album ADD COLUMN length TEXT DEFAULT NULL")
+
+            it.execSQL("CREATE TABLE IF NOT EXISTS `Album_new` (`numberItems` TEXT,  `year` TEXT, `authorsText` TEXT, `length` TEXT, `shareUrl` TEXT, `id` TEXT NOT NULL, `title` TEXT, `thumbnailUrl` TEXT, `timestamp` INTEGER, PRIMARY KEY(`id`))")
+
+            it.execSQL("INSERT INTO Album_new(numberItems, year, authorsText, length, shareUrl, id, title, thumbnailUrl, timestamp) SELECT numberItems, year, authorsText, length, shareUrl, id, title, thumbnailUrl, timestamp FROM Album;")
+            it.execSQL("DROP TABLE Album;")
+            it.execSQL("ALTER TABLE Album_new RENAME TO Album;")
+
         }
     }
 }

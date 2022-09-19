@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.center
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -67,9 +68,11 @@ import it.vfsfitvnm.vimusic.utils.thumbnail
 import it.vfsfitvnm.youtubemusic.YouTube
 import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.*
 
@@ -114,7 +117,7 @@ fun ArtistScreen(browseId: String) {
 
             val songThumbnailSizePx = Dimensions.thumbnails.song.px
 
-            val songs by remember(browseId) {
+            val localSongs by remember(browseId) {
                 Database.artistSongs(browseId)
             }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
 
@@ -329,7 +332,7 @@ fun ArtistScreen(browseId: String) {
 
 
                 item("songs") {
-                    if (songs.isEmpty()) return@item
+                    if (localSongs.isEmpty()) return@item
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -342,7 +345,7 @@ fun ArtistScreen(browseId: String) {
                             .padding(top = 32.dp)
                     ) {
                         BasicText(
-                            text = "Local tracks",
+                            text = stringResource(R.string.local_tracks),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .padding(horizontal = 8.dp)
@@ -353,10 +356,10 @@ fun ArtistScreen(browseId: String) {
                             contentDescription = null,
                             colorFilter = ColorFilter.tint(colorPalette.text),
                             modifier = Modifier
-                                .clickable(enabled = songs.isNotEmpty()) {
+                                .clickable(enabled = localSongs.isNotEmpty()) {
                                     binder?.stopRadio()
                                     binder?.player?.forcePlayFromBeginning(
-                                        songs
+                                        localSongs
                                             .shuffled()
                                             .map(DetailedSong::asMediaItem)
                                     )
@@ -367,18 +370,20 @@ fun ArtistScreen(browseId: String) {
                     }
                 }
 
+
                 itemsIndexed(
-                    items = songs,
+                    items = localSongs,
                     key = { _, song -> song.id },
                     contentType = { _, song -> song },
                 ) { index, song ->
                     SongItem(
                         song = song,
                         thumbnailSize = songThumbnailSizePx,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
-                                songs.map(DetailedSong::asMediaItem),
+                                localSongs.map(DetailedSong::asMediaItem),
                                 index
                             )
                         },
@@ -399,7 +404,7 @@ fun ArtistScreen(browseId: String) {
                                 .padding(top = 32.dp)
                         ) {
                             BasicText(
-                                text = "Information",
+                                text = stringResource(R.string.information),
                                 style = typography.m.semiBold,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
@@ -448,6 +453,7 @@ fun ArtistScreen(browseId: String) {
     }
 }
 
+
 @Composable
 private fun LoadingOrError(
     errorMessage: String? = null,
@@ -494,7 +500,7 @@ private suspend fun fetchArtist(browseId: String): Result<Artist>? {
                 shufflePlaylistId = youtubeArtist.shuffleEndpoint?.playlistId,
                 radioVideoId = youtubeArtist.radioEndpoint?.videoId,
                 radioPlaylistId = youtubeArtist.radioEndpoint?.playlistId,
-                timestamp = System.currentTimeMillis()
+                timestamp = System.currentTimeMillis(),
             ).also(Database::upsert)
         }
 }

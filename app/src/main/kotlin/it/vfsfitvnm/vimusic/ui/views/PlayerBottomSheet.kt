@@ -149,6 +149,7 @@ fun PlayerBottomSheet(
                                 binder.player.seekToDefaultPosition(window.firstPeriodIndex)
                             }
                         },
+                        swipeShow = false,
                         menuContent = {
                             QueuedMediaItemMenu(
                                 mediaItem = window.mediaItem,

@@ -1,6 +1,8 @@
 package it.vfsfitvnm.vimusic.ui.screens
 
+import android.annotation.SuppressLint
 import android.net.Uri
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.animation.animateContentSize
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -54,9 +57,7 @@ import it.vfsfitvnm.vimusic.enums.PlaylistSortBy
 import it.vfsfitvnm.vimusic.enums.SongSortBy
 import it.vfsfitvnm.vimusic.enums.SortOrder
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
-import it.vfsfitvnm.vimusic.models.DetailedSong
-import it.vfsfitvnm.vimusic.models.Playlist
-import it.vfsfitvnm.vimusic.models.SearchQuery
+import it.vfsfitvnm.vimusic.models.*
 import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.TopAppBar
 import it.vfsfitvnm.vimusic.ui.components.badge
@@ -72,6 +73,8 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.ui.views.BuiltInPlaylistItem
 import it.vfsfitvnm.vimusic.ui.views.PlaylistPreviewItem
 import it.vfsfitvnm.vimusic.ui.views.SongItem
+import it.vfsfitvnm.vimusic.utils.*
+import it.vfsfitvnm.youtubemusic.YouTube
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.color
@@ -86,7 +89,12 @@ import it.vfsfitvnm.vimusic.utils.semiBold
 import it.vfsfitvnm.vimusic.utils.songSortByKey
 import it.vfsfitvnm.vimusic.utils.songSortOrderKey
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
+@SuppressLint("CoroutineCreationDuringComposition")
 @ExperimentalFoundationApi
 @ExperimentalAnimationApi
 @Composable
@@ -110,6 +118,18 @@ fun HomeScreen() {
     val songCollection by remember(songSortBy, songSortOrder) {
         Database.songs(songSortBy, songSortOrder)
     }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
+
+    val browseId = "FEmusic_new_releases"
+
+    val albumResult by remember(browseId) {
+        Database.album(browseId).map { album ->
+            album
+                ?: fetchAlbum(browseId)
+        }.distinctUntilChanged()
+    }.collectAsState(initial = null, context = Dispatchers.IO)
+
+    println(albumResult)
+
 
     RouteHandler(listenToGlobalEmitter = true) {
         settingsRoute {
@@ -220,7 +240,6 @@ fun HomeScreen() {
                                 .badge(color = colorPalette.red, isDisplayed = isFirstLaunch)
                                 .size(24.dp)
                         )
-
                         Image(
                             painter = painterResource(R.drawable.search),
                             contentDescription = null,
@@ -242,7 +261,7 @@ fun HomeScreen() {
                             .padding(top = 16.dp)
                     ) {
                         BasicText(
-                            text = "Your playlists",
+                            text = stringResource(R.string.your_playlists),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -280,7 +299,7 @@ fun HomeScreen() {
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "NAME",
+                                        text = stringResource(R.string.name),
                                         isSelected = playlistSortBy == PlaylistSortBy.Name,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -289,7 +308,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = playlistSortBy == PlaylistSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -298,7 +317,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "SONG COUNT",
+                                        text = stringResource(R.string.song_count),
                                         isSelected = playlistSortBy == PlaylistSortBy.SongCount,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -312,8 +331,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -326,8 +345,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (playlistGridExpanded) {
-                                            true -> "COLLAPSE"
-                                            false -> "EXPAND"
+                                            true -> stringResource(R.string.collapse)
+                                            false -> stringResource(R.string.compact)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -354,7 +373,7 @@ fun HomeScreen() {
                             BuiltInPlaylistItem(
                                 icon = R.drawable.heart,
                                 colorTint = colorPalette.red,
-                                name = "Favorites",
+                                name = stringResource(R.string.fav),
                                 modifier = Modifier
                                     .animateItemPlacement()
                                     .padding(all = 8.dp)
@@ -370,7 +389,7 @@ fun HomeScreen() {
                             BuiltInPlaylistItem(
                                 icon = R.drawable.airplane,
                                 colorTint = colorPalette.blue,
-                                name = "Offline",
+                                name = stringResource(R.string.offline),
                                 modifier = Modifier
                                     .animateItemPlacement()
                                     .padding(all = 8.dp)
@@ -402,6 +421,66 @@ fun HomeScreen() {
                     }
                 }
 
+                /*item("playlists") {
+                    LazyHorizontalGrid(
+                        state = lazyHorizontalGridState,
+                        rows = GridCells.Fixed(if (playlistGridExpanded) 3 else 1),
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        modifier = Modifier
+                            .animateContentSize()
+                            .fillMaxWidth()
+                            .height(124.dp * (if (playlistGridExpanded) 3 else 1))
+                    ) {
+                        item(key = "favorites") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.heart,
+                                colorTint = colorPalette.red,
+                                name = stringResource(R.string.fav),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Favorites) }
+                                    )
+                            )
+                        }
+
+                        item(key = "offline") {
+                            BuiltInPlaylistItem(
+                                icon = R.drawable.airplane,
+                                colorTint = colorPalette.blue,
+                                name = stringResource(R.string.offline),
+                                modifier = Modifier
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { builtInPlaylistRoute(BuiltInPlaylist.Offline) }
+                                    )
+                            )
+                        }
+
+                        items(
+                            items = playlistPreviews,
+                            key = { it.playlist.id },
+                            contentType = { it }
+                        ) { playlistPreview ->
+                            PlaylistPreviewItem(
+                                playlistPreview = playlistPreview,
+                                modifier = Modifier
+                                    .animateItemPlacement()
+                                    .padding(all = 8.dp)
+                                    .clickable(
+                                        indication = rememberRipple(bounded = true),
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        onClick = { localPlaylistRoute(playlistPreview.playlist.id) }
+                                    )
+                            )
+                        }
+                    }
+                }*/
+
                 item("songs") {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -412,7 +491,7 @@ fun HomeScreen() {
                             .padding(top = 32.dp)
                     ) {
                         BasicText(
-                            text = "Songs",
+                            text = stringResource(R.string.songs),
                             style = typography.m.semiBold,
                             modifier = Modifier
                                 .weight(1f)
@@ -461,7 +540,7 @@ fun HomeScreen() {
                             ) {
                                 DropDownSection {
                                     DropDownTextItem(
-                                        text = "PLAY TIME",
+                                        text = stringResource(R.string.play_time),
                                         isSelected = songSortBy == SongSortBy.PlayTime,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -470,7 +549,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "TITLE",
+                                        text = stringResource(R.string.title),
                                         isSelected = songSortBy == SongSortBy.Title,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -479,7 +558,7 @@ fun HomeScreen() {
                                     )
 
                                     DropDownTextItem(
-                                        text = "DATE ADDED",
+                                        text = stringResource(R.string.date_added),
                                         isSelected = songSortBy == SongSortBy.DateAdded,
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -493,8 +572,8 @@ fun HomeScreen() {
                                 DropDownSection {
                                     DropDownTextItem(
                                         text = when (songSortOrder) {
-                                            SortOrder.Ascending -> "ASCENDING"
-                                            SortOrder.Descending -> "DESCENDING"
+                                            SortOrder.Ascending -> stringResource(R.string.ascending)
+                                            SortOrder.Descending -> stringResource(R.string.descending)
                                         },
                                         onClick = {
                                             isSortMenuDisplayed = false
@@ -515,6 +594,7 @@ fun HomeScreen() {
                     SongItem(
                         song = song,
                         thumbnailSize = thumbnailSize,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -560,4 +640,13 @@ fun HomeScreen() {
             }
         }
     }
+}
+
+private suspend fun fetchAlbum(browseId: String){
+    print("oui form homze")
+    YouTube.newRelease()
+        ?.map { youtubeAlbum ->
+            print(youtubeAlbum.name?.get(0))
+            Log.d("TAG",youtubeAlbum.name?.joinToString("")?:"nooon")
+        }
 }

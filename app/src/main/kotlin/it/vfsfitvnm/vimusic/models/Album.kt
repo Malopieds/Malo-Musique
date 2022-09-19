@@ -5,7 +5,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Immutable
-@Entity
+@Entity(tableName = "Album")
 data class Album(
     @PrimaryKey val id: String,
     val title: String?,
@@ -13,5 +13,7 @@ data class Album(
     val year: String? = null,
     val authorsText: String? = null,
     val shareUrl: String? = null,
-    val timestamp: Long?
+    val timestamp: Long?,
+    val numberItems: String?,
+    val length: String?,
 )

@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import it.vfsfitvnm.route.RouteHandler
 import it.vfsfitvnm.vimusic.LocalPlayerAwarePaddingValues
@@ -81,12 +82,12 @@ fun AppearanceSettingsScreen() {
                     )
                 }
 
-                SettingsTitle(text = "Appearance")
+                SettingsTitle(text = stringResource(R.string.appearance))
 
-                SettingsEntryGroupText(title = "COLORS")
+                SettingsEntryGroupText(title = stringResource(R.string.colors))
 
                 EnumValueSelectorSettingsEntry(
-                    title = "Theme",
+                    title = stringResource(R.string.theme_mode),
                     selectedValue = colorPaletteName,
                     onValueSelected = {
                         colorPaletteName = it
@@ -102,10 +103,10 @@ fun AppearanceSettingsScreen() {
                     }
                 )
 
-                SettingsEntryGroupText(title = "SHAPES")
+                SettingsEntryGroupText(title = stringResource(R.string.shapes))
 
                 EnumValueSelectorSettingsEntry(
-                    title = "Thumbnail roundness",
+                    title = stringResource(R.string.thumbnail_roundness),
                     selectedValue = thumbnailRoundness,
                     onValueSelected = {
                         thumbnailRoundness = it

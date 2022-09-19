@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -97,7 +98,9 @@ fun AlbumScreen(browseId: String) {
                             year = youtubeAlbum.year,
                             authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
                             shareUrl = youtubeAlbum.url,
-                            timestamp = System.currentTimeMillis()
+                            timestamp = System.currentTimeMillis(),
+                            numberItems = youtubeAlbum.numberItems,
+                            length = youtubeAlbum.length
                         ),
                         youtubeAlbum.items?.mapIndexedNotNull { position, albumItem ->
                             albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
@@ -181,7 +184,7 @@ fun AlbumScreen(browseId: String) {
                                     .weight(1f)
                             ) {
                                 BasicText(
-                                    text = album.title ?: "Unknown",
+                                    text = album.title ?: stringResource(R.string.unknown),
                                     style = typography.m.semiBold
                                 )
 
@@ -195,6 +198,16 @@ fun AlbumScreen(browseId: String) {
                                 album.year?.let { year ->
                                     BasicText(
                                         text = year,
+                                        style = typography.xs.secondary,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                    )
+                                }
+
+                                album.let { album ->
+                                    BasicText(
+                                        text = album.numberItems + " • " +  album.length,
                                         style = typography.xs.secondary,
                                         maxLines = 1,
                                         modifier = Modifier
@@ -245,7 +258,7 @@ fun AlbumScreen(browseId: String) {
                                         Menu {
                                             MenuEntry(
                                                 icon = R.drawable.enqueue,
-                                                text = "Enqueue",
+                                                text = stringResource(R.string.enqueue),
                                                 onClick = {
                                                     menuState.hide()
                                                     binder?.player?.enqueue(
@@ -256,7 +269,7 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.playlist,
-                                                text = "Import as playlist",
+                                                text = stringResource(R.string.import_as_playlist),
                                                 onClick = {
                                                     menuState.hide()
 
@@ -288,7 +301,7 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.share_social,
-                                                text = "Share",
+                                                text = stringResource(R.string.share),
                                                 onClick = {
                                                     menuState.hide()
 
@@ -311,13 +324,11 @@ fun AlbumScreen(browseId: String) {
 
                                             MenuEntry(
                                                 icon = R.drawable.download,
-                                                text = "Refetch",
+                                                text = stringResource(R.string.refetch),
                                                 secondaryText = albumResult?.getOrNull()?.timestamp?.let { timestamp ->
-                                                    "Last updated on ${
-                                                        DateFormat
-                                                            .getDateTimeInstance()
-                                                            .format(Date(timestamp))
-                                                    }"
+                                                    stringResource(R.string.last_update)+ DateFormat
+                                                        .getDateTimeInstance()
+                                                        .format(Date(timestamp))
                                                 },
                                                 isEnabled = albumResult?.getOrNull() != null,
                                                 onClick = {
@@ -348,6 +359,8 @@ fun AlbumScreen(browseId: String) {
                         title = song.title,
                         authors = song.artistsText ?: albumResult?.getOrNull()?.authorsText,
                         durationText = song.durationText,
+                        mediaItem = song.asMediaItem,
+                        swipeShow = true,
                         onClick = {
                             binder?.stopRadio()
                             binder?.player?.forcePlayAtIndex(
@@ -418,4 +431,38 @@ private fun LoadingOrError(
             }
         }
     }
+}
+
+private suspend fun fetchAlbum(browseId: String): Result<Album>? {
+    return YouTube.album(browseId)
+        ?.map { youtubeAlbum ->
+            val album = Album(
+                id = browseId,
+                title = youtubeAlbum.title,
+                thumbnailUrl = youtubeAlbum.thumbnail?.url,
+                year = youtubeAlbum.year,
+                authorsText = youtubeAlbum.authors?.joinToString("") { it.name },
+                shareUrl = youtubeAlbum.url,
+                timestamp = System.currentTimeMillis(),
+                numberItems = youtubeAlbum.numberItems,
+                length = youtubeAlbum.length
+            )
+
+            //Database.upsert(album)
+
+            youtubeAlbum.items?.forEachIndexed { position, albumItem ->
+                albumItem.toMediaItem(browseId, youtubeAlbum)?.let { mediaItem ->
+                    Database.insert(mediaItem)
+                    Database.upsert(
+                        SongAlbumMap(
+                            songId = mediaItem.mediaId,
+                            albumId = browseId,
+                            position = position
+                        )
+                    )
+                }
+            }
+
+            album
+        }
 }

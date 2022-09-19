@@ -1,3 +1,4 @@
+
 package it.vfsfitvnm.vimusic.ui.screens
 
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import it.vfsfitvnm.reordering.ReorderingLazyColumn
@@ -105,9 +107,11 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
             if (isRenaming) {
                 TextFieldDialog(
-                    hintText = "Enter the playlist name",
+                    hintText = stringResource(R.string.enter_playlist_name),
                     initialTextInput = playlistWithSongs.playlist.name,
-                    onDismiss = { isRenaming = false },
+                    onDismiss = {
+                        isRenaming = false
+                    },
                     onDone = { text ->
                         query {
                             Database.update(playlistWithSongs.playlist.copy(name = text))
@@ -122,8 +126,10 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
             if (isDeleting) {
                 ConfirmationDialog(
-                    text = "Do you really want to delete this playlist?",
-                    onDismiss = { isDeleting = false },
+                    text = stringResource(R.string.confirm_delete_playlist),
+                    onDismiss = {
+                        isDeleting = false
+                    },
                     onConfirm = {
                         query {
                             Database.delete(playlistWithSongs.playlist)
@@ -168,7 +174,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                             )
 
                             BasicText(
-                                text = "${playlistWithSongs.songs.size} songs",
+                                text = "${playlistWithSongs.songs.size} " + stringResource(R.string.songs),
                                 style = typography.xxs.semiBold.secondary
                             )
                         }
@@ -208,7 +214,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                             Menu {
                                                 MenuEntry(
                                                     icon = R.drawable.enqueue,
-                                                    text = "Enqueue",
+                                                    text = stringResource(R.string.enqueue),
                                                     isEnabled = playlistWithSongs.songs.isNotEmpty(),
                                                     onClick = {
                                                         menuState.hide()
@@ -222,7 +228,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                                                 MenuEntry(
                                                     icon = R.drawable.pencil,
-                                                    text = "Rename",
+                                                    text = stringResource(R.string.rename),
                                                     onClick = {
                                                         menuState.hide()
                                                         isRenaming = true
@@ -268,7 +274,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
 
                                                 MenuEntry(
                                                     icon = R.drawable.trash,
-                                                    text = "Delete",
+                                                    text = stringResource(R.string.delete),
                                                     onClick = {
                                                         menuState.hide()
                                                         isDeleting = true
@@ -300,6 +306,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                                 ), index
                             )
                         },
+                        swipeShow = true,
                         menuContent = {
                             InPlaylistMediaItemMenu(
                                 playlistId = playlistId,
@@ -324,7 +331,7 @@ fun LocalPlaylistScreen(playlistId: Long) {
                         },
                         modifier = Modifier
                             .animateItemPlacement(reorderingState = reorderingState)
-                            .draggedItem(reorderingState = reorderingState, index = index)
+                            .draggedItem(reorderingState = reorderingState, index = index),
                     )
                 }
             }
