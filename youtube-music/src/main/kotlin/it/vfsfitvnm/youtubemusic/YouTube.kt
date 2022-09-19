@@ -16,18 +16,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
-import it.vfsfitvnm.youtubemusic.models.BrowseResponse
-import it.vfsfitvnm.youtubemusic.models.ContinuationResponse
-import it.vfsfitvnm.youtubemusic.models.GetQueueResponse
-import it.vfsfitvnm.youtubemusic.models.GetSearchSuggestionsResponse
-import it.vfsfitvnm.youtubemusic.models.MusicResponsiveListItemRenderer
-import it.vfsfitvnm.youtubemusic.models.MusicShelfRenderer
-import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
-import it.vfsfitvnm.youtubemusic.models.NextResponse
-import it.vfsfitvnm.youtubemusic.models.PlayerResponse
-import it.vfsfitvnm.youtubemusic.models.Runs
-import it.vfsfitvnm.youtubemusic.models.SearchResponse
-import it.vfsfitvnm.youtubemusic.models.ThumbnailRenderer
+import it.vfsfitvnm.youtubemusic.models.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -973,7 +962,9 @@ object YouTube {
         val description: String?,
         val thumbnail: ThumbnailRenderer.MusicThumbnailRenderer.Thumbnail.Thumbnail?,
         val shuffleEndpoint: NavigationEndpoint.Endpoint.Watch?,
-        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?
+        val radioEndpoint: NavigationEndpoint.Endpoint.Watch?,
+        val songs: List<MusicShelfRenderer.Content>?,
+        val albums: List<MusicCarouselShelfRenderer.Content>?
     )
 
     suspend fun artist(browseId: String): Result<Artist>? {
@@ -1011,7 +1002,31 @@ object YouTube {
                     ?.startRadioButton
                     ?.buttonRenderer
                     ?.navigationEndpoint
-                    ?.watchEndpoint
+                    ?.watchEndpoint,
+                songs = body
+                    .contents
+                    .singleColumnBrowseResultsRenderer
+                    ?.tabs
+                    ?.get(0)
+                    ?.tabRenderer
+                    ?.content
+                    ?.sectionListRenderer
+                    ?.contents
+                    ?.get(0)
+                    ?.musicShelfRenderer
+                    ?.contents,
+                albums = body
+                    .contents
+                    .singleColumnBrowseResultsRenderer
+                    ?.tabs
+                    ?.get(0)
+                    ?.tabRenderer
+                    ?.content
+                    ?.sectionListRenderer
+                    ?.contents
+                    ?.get(1)
+                    ?.musicCarouselShelfRenderer
+                    ?.contents
             )
         }
     }
