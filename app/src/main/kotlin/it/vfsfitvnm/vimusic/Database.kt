@@ -298,6 +298,11 @@ interface Database {
         }
     }
 
+    @Transaction
+    @Query("SELECT * FROM Song JOIN SongArtistMap ON Song.id = SongArtistMap.songId WHERE SongArtistMap.artistId = :artistId AND totalPlayTimeMs > 0 ORDER BY Song.ROWID DESC")
+    @RewriteQueriesToDropUnusedColumns
+    fun artistSongsBis(artistId: String): Flow<List<DetailedSong>>
+
     @Update
     fun update(song: Song)
 
