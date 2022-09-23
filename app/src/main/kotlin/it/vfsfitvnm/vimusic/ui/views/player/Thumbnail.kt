@@ -62,8 +62,6 @@ fun Thumbnail(
         mutableStateOf(0f)
     }
 
-    var saveOffset by remember { mutableStateOf(0f) }
-
     val offsetAnimation by animateDpAsState(targetValue = 0.dp)
     val offsetReturn by animateFloatAsState(targetValue = 0f, tween(1000))
 

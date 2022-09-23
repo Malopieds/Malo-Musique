@@ -985,6 +985,17 @@ object YouTube {
 
     suspend fun artist(browseId: String): Result<Artist>? {
         return browse(browseId)?.map { body ->
+            val albumCheck = body
+                .contents
+                .singleColumnBrowseResultsRenderer
+                ?.tabs
+                ?.get(0)
+                ?.tabRenderer
+                ?.content
+                ?.sectionListRenderer
+                ?.contents
+                ?.get(1)
+                ?.musicCarouselShelfRenderer
             println(body.contents?.singleColumnBrowseResultsRenderer?.tabs?.get(0)?.tabRenderer?.content?.sectionListRenderer?.contents?.get(0)?.musicShelfRenderer?.contents?.get(0)?.musicResponsiveListItemRenderer?.flexColumns?.get(0)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.get(0)?.text)
             Artist(
                 name = body
@@ -1032,18 +1043,11 @@ object YouTube {
                     ?.get(0)
                     ?.musicShelfRenderer
                     ?.contents,
-                albums = body
-                    .contents
-                    .singleColumnBrowseResultsRenderer
-                    ?.tabs
-                    ?.get(0)
-                    ?.tabRenderer
-                    ?.content
-                    ?.sectionListRenderer
-                    ?.contents
-                    ?.get(1)
-                    ?.musicCarouselShelfRenderer
-                    ?.contents
+                albums = if(albumCheck?.header?.musicCarouselShelfBasicHeaderRenderer?.title?.runs?.get(0)?.text == "Albums") {
+                    albumCheck.contents
+                }else{
+                    null
+                }
             )
         }
     }

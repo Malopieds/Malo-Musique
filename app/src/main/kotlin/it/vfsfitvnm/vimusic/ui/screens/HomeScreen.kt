@@ -119,16 +119,14 @@ fun HomeScreen() {
         Database.songs(songSortBy, songSortOrder)
     }.collectAsState(initial = emptyList(), context = Dispatchers.IO)
 
-    val browseId = "FEmusic_new_releases"
+    //val browseId = "FEmusic_new_releases"
 
-    val albumResult by remember(browseId) {
+    /*val albumResult by remember(browseId) {
         Database.album(browseId).map { album ->
             album
                 ?: fetchAlbum(browseId)
         }.distinctUntilChanged()
-    }.collectAsState(initial = null, context = Dispatchers.IO)
-
-    println(albumResult)
+    }.collectAsState(initial = null, context = Dispatchers.IO)*/
 
 
     RouteHandler(listenToGlobalEmitter = true) {
@@ -640,13 +638,4 @@ fun HomeScreen() {
             }
         }
     }
-}
-
-private suspend fun fetchAlbum(browseId: String){
-    print("oui form homze")
-    YouTube.newRelease()
-        ?.map { youtubeAlbum ->
-            print(youtubeAlbum.name?.get(0))
-            Log.d("TAG",youtubeAlbum.name?.joinToString("")?:"nooon")
-        }
 }

@@ -16,7 +16,7 @@ android {
         minSdk = 21
         targetSdk = 32
         versionCode = 15
-        versionName = "0.4.4"
+        versionName = "0.4.5"
     }
 
     splits {

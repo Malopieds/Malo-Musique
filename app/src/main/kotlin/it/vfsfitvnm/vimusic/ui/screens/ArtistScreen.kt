@@ -230,102 +230,110 @@ fun ArtistScreen(browseId: String) {
                     } ?: LoadingOrError()
                 }
 
-                item("artistSongs") {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .background(colorPalette.background0)
-                            .zIndex(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .padding(top = 32.dp)
-                    ) {
-                        BasicText(
-                            text = "Songs",
-                            style = typography.m.semiBold,
+                if(!artistInfoResult?.songs.isNullOrEmpty())
+                {
+                    item("artistSongs") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier
+                                .background(colorPalette.background0)
+                                .zIndex(1f)
+                                .fillMaxWidth()
                                 .padding(horizontal = 8.dp)
-                        )
-
-                        BasicText(
-                            text = "Show All",
-                            style = typography.s.semiBold.secondary,
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
-                                .clickable {
-                                    playlistRoute("VL${artistInfoResult!!.seeMoreSongs}")
-                                }
-                        )
-                    }
-                }
-
-                itemsIndexed(
-                    items = artistInfoResult?.songs ?: emptyList(),
-                    key = { index, _ -> index},
-                    contentType = { _, song -> song },
-                ) { index, song ->
-                    SongItem(
-                        song = song,
-                        thumbnailSize = songThumbnailSizePx,
-                        onClick = {
-                            binder?.stopRadio()
-                            binder?.player?.forcePlayAtIndex(
-                                artistInfoResult?.songs!!.map(DetailedSong::asMediaItem), //TODO play it like YTM does (playlist at index)
-                                index
+                                .padding(top = 32.dp)
+                        ) {
+                            BasicText(
+                                text = "Songs",
+                                style = typography.m.semiBold,
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
                             )
-                        },
-                        menuContent = {
-                            InHistoryMediaItemMenu(song = song)
-                        }
-                    )
-                }
 
-                item("artistAlbum") {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier
-                            .background(colorPalette.background0)
-                            .zIndex(1f)
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp)
-                            .padding(top = 32.dp, bottom = 20.dp)
-                    ) {
-                        BasicText(
-                            text = "Albums",
-                            style = typography.m.semiBold,
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp)
+                            BasicText(
+                                text = "Show All",
+                                style = typography.s.semiBold.secondary,
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                                    .clickable {
+                                        playlistRoute("VL${artistInfoResult!!.seeMoreSongs}")
+                                    }
+                            )
+                        }
+                    }
+
+                    itemsIndexed(
+                        items = artistInfoResult?.songs ?: emptyList(),
+                        key = { index, _ -> index},
+                        contentType = { _, song -> song },
+                    ) { index, song ->
+                        SongItem(
+                            song = song,
+                            thumbnailSize = songThumbnailSizePx,
+                            onClick = {
+                                binder?.stopRadio()
+                                binder?.player?.forcePlayAtIndex(
+                                    artistInfoResult?.songs!!.map(DetailedSong::asMediaItem), //TODO play it like YTM does (playlist at index)
+                                    index
+                                )
+                            },
+                            swipeShow = true,
+                            menuContent = {
+                                InHistoryMediaItemMenu(song = song)
+                            }
                         )
                     }
                 }
 
-                item("albums") {
-                    LazyHorizontalGrid(
-                        state = lazyHorizontalGridState,
-                        rows = GridCells.Fixed(1),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        modifier = Modifier
-                            .animateContentSize()
-                            .fillMaxWidth()
-                            .height(Dimensions.thumbnails.album + 60.dp)
-                    ) {
-                        itemsIndexed(
-                            items = artistInfoResult?.albums ?: emptyList(),
-                            key = { index, _ -> index},
-                            contentType = { _, song -> song },
-                        ) { _, album ->
-                            Box(modifier = Modifier
-                                .fillMaxSize()
-                                .clickable {
-                                    albumRoute(album.id)
-                                }) {
-                                AlbumItem(
-                                    album = album,
-                                    thumbnailSizeDp = Dimensions.thumbnails.album)
-                            }
+                if(!artistInfoResult?.albums.isNullOrEmpty()) {
 
+                    item("artistAlbum") {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier
+                                .background(colorPalette.background0)
+                                .zIndex(1f)
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp)
+                                .padding(top = 32.dp, bottom = 20.dp)
+                        ) {
+                            BasicText(
+                                text = "Albums",
+                                style = typography.m.semiBold,
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                            )
+                        }
+                    }
+
+                    item("albums") {
+                        LazyHorizontalGrid(
+                            state = lazyHorizontalGridState,
+                            rows = GridCells.Fixed(1),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            modifier = Modifier
+                                .animateContentSize()
+                                .fillMaxWidth()
+                                .height(Dimensions.thumbnails.album + 60.dp)
+                        ) {
+                            itemsIndexed(
+                                items = artistInfoResult?.albums ?: emptyList(),
+                                key = { index, _ -> index },
+                                contentType = { _, song -> song },
+                            ) { _, album ->
+                                Box(modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable {
+                                        albumRoute(album.id)
+                                    }) {
+                                    AlbumItem(
+                                        album = album,
+                                        thumbnailSizeDp = Dimensions.thumbnails.album
+                                    )
+                                }
+
+                            }
                         }
                     }
                 }
@@ -569,37 +577,43 @@ private suspend fun fetchArtistSongs(browseId: String): ArtistInfo {
                 )
             songs.add(e)
             }
-            for (album in youtubeArtistSong.albums!!){
-                val e = Album(
-                    id = album.musicTwoRowItemRenderer
-                        ?.title
-                        ?.runs
-                        ?.get(0)
-                        ?.navigationEndpoint
-                        ?.browseEndpoint
-                        ?.browseId!!,
-                    title = album.musicTwoRowItemRenderer
-                        ?.title
-                        ?.runs
-                        ?.get(0)
-                        ?.text,
-                    thumbnailUrl = album.musicTwoRowItemRenderer
-                        ?.thumbnailRenderer
-                        ?.musicThumbnailRenderer
-                        ?.thumbnail
-                        ?.thumbnails
-                        ?.get(1)
-                        ?.url,
-                    year = album.musicTwoRowItemRenderer
-                        ?.subtitle
-                        ?.runs
-                        ?.get(2)
-                        ?.text,
-                    authorsText = youtubeArtistSong.name,
-                    shareUrl = null,
-                    timestamp = null
-                )
-                albums.add(e)
+            if(youtubeArtistSong.albums != null) {
+                for (album in youtubeArtistSong.albums!!) {
+                    val e = Album(
+                        id = album.musicTwoRowItemRenderer
+                            ?.title
+                            ?.runs
+                            ?.get(0)
+                            ?.navigationEndpoint
+                            ?.browseEndpoint
+                            ?.browseId!!,
+                        title = album.musicTwoRowItemRenderer
+                            ?.title
+                            ?.runs
+                            ?.get(0)
+                            ?.text,
+                        thumbnailUrl = album.musicTwoRowItemRenderer
+                            ?.thumbnailRenderer
+                            ?.musicThumbnailRenderer
+                            ?.thumbnail
+                            ?.thumbnails
+                            ?.get(1)
+                            ?.url,
+                        year = album.musicTwoRowItemRenderer
+                            ?.subtitle
+                            ?.runs
+                            ?.get(2)
+                            ?.text,
+                        authorsText = youtubeArtistSong.name,
+                        shareUrl = null,
+                        timestamp = null,
+                        length = null,
+                        numberItems = null
+                    )
+                    albums.add(e)
+                }
+            }else{
+                print("no albums")
             }
         }
     return ArtistInfo(
