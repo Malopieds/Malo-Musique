@@ -6,36 +6,40 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import it.vfsfitvnm.reordering.ReorderingLazyColumn
-import it.vfsfitvnm.reordering.animateItemPlacement
-import it.vfsfitvnm.reordering.draggedItem
-import it.vfsfitvnm.reordering.rememberReorderingState
-import it.vfsfitvnm.reordering.reorder
+import it.vfsfitvnm.compose.persist.persist
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.bodies.BrowseBody
+import it.vfsfitvnm.innertube.requests.playlistPage
+import it.vfsfitvnm.compose.reordering.ReorderingLazyColumn
+import it.vfsfitvnm.compose.reordering.animateItemPlacement
+import it.vfsfitvnm.compose.reordering.draggedItem
+import it.vfsfitvnm.compose.reordering.rememberReorderingState
+import it.vfsfitvnm.compose.reordering.reorder
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.padding
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
-import it.vfsfitvnm.vimusic.models.DetailedSong
+import it.vfsfitvnm.vimusic.models.PlaylistWithSongs
+import it.vfsfitvnm.vimusic.models.Song
 import it.vfsfitvnm.vimusic.models.SongPlaylistMap
 import it.vfsfitvnm.vimusic.query
-import it.vfsfitvnm.vimusic.savers.PlaylistWithSongsSaver
-import it.vfsfitvnm.vimusic.savers.nullableSaver
 import it.vfsfitvnm.vimusic.transaction
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
 import it.vfsfitvnm.vimusic.ui.components.themed.ConfirmationDialog
@@ -57,12 +61,8 @@ import it.vfsfitvnm.vimusic.utils.completed
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.bodies.BrowseBody
-import it.vfsfitvnm.youtubemusic.requests.playlistPage
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
@@ -77,14 +77,10 @@ fun LocalPlaylistSongs(
     val binder = LocalPlayerServiceBinder.current
     val menuState = LocalMenuState.current
 
-    val playlistWithSongs by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(PlaylistWithSongsSaver)
-    ) {
-        Database
-            .playlistWithSongs(playlistId)
-            .flowOn(Dispatchers.IO)
-            .collect { value = it }
+    var playlistWithSongs by persist<PlaylistWithSongs?>("localPlaylist/$playlistId/playlistWithSongs")
+
+    LaunchedEffect(Unit) {
+        Database.playlistWithSongs(playlistId).filterNotNull().collect { playlistWithSongs = it }
     }
 
     val lazyListState = rememberLazyListState()
@@ -162,7 +158,7 @@ fun LocalPlaylistSongs(
                         enabled = playlistWithSongs?.songs?.isNotEmpty() == true,
                         onClick = {
                             playlistWithSongs?.songs
-                                ?.map(DetailedSong::asMediaItem)
+                                ?.map(Song::asMediaItem)
                                 ?.let { mediaItems ->
                                     binder?.player?.enqueue(mediaItems)
                                 }
@@ -270,7 +266,7 @@ fun LocalPlaylistSongs(
                             },
                             onClick = {
                                 playlistWithSongs?.songs
-                                    ?.map(DetailedSong::asMediaItem)
+                                    ?.map(Song::asMediaItem)
                                     ?.let { mediaItems ->
                                         binder?.stopRadio()
                                         binder?.player?.forcePlayAtIndex(mediaItems, index)
@@ -292,7 +288,7 @@ fun LocalPlaylistSongs(
                     if (songs.isNotEmpty()) {
                         binder?.stopRadio()
                         binder?.player?.forcePlayFromBeginning(
-                            songs.shuffled().map(DetailedSong::asMediaItem)
+                            songs.shuffled().map(Song::asMediaItem)
                         )
                     }
                 }

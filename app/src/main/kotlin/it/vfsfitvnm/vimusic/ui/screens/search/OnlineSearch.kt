@@ -7,8 +7,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,7 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.autoSaver
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.paint
@@ -32,6 +35,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -39,17 +43,16 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import it.vfsfitvnm.compose.persist.persist
+import it.vfsfitvnm.compose.persist.persistList
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.bodies.SearchSuggestionsBody
+import it.vfsfitvnm.innertube.requests.searchSuggestions
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.only
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.SearchQuery
 import it.vfsfitvnm.vimusic.query
-import it.vfsfitvnm.vimusic.savers.SearchQuerySaver
-import it.vfsfitvnm.vimusic.savers.listSaver
-import it.vfsfitvnm.vimusic.savers.resultSaver
 import it.vfsfitvnm.vimusic.ui.components.themed.FloatingActionsContainerWithScrollToTop
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
 import it.vfsfitvnm.vimusic.ui.components.themed.SecondaryTextButton
@@ -57,16 +60,11 @@ import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.align
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.medium
-import it.vfsfitvnm.vimusic.utils.produceSaveableOneShotState
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
+import it.vfsfitvnm.vimusic.utils.pauseSearchHistoryKey
+import it.vfsfitvnm.vimusic.utils.preferences
 import it.vfsfitvnm.vimusic.utils.secondary
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.bodies.SearchSuggestionsBody
-import it.vfsfitvnm.youtubemusic.requests.searchSuggestions
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
 
 @ExperimentalAnimationApi
 @Composable
@@ -77,34 +75,36 @@ fun OnlineSearch(
     onViewPlaylist: (String) -> Unit,
     decorationBox: @Composable (@Composable () -> Unit) -> Unit
 ) {
+    val context = LocalContext.current
+
     val (colorPalette, typography) = LocalAppearance.current
 
-    val history by produceSaveableState(
-        initialValue = emptyList(),
-        stateSaver = listSaver(SearchQuerySaver),
-        key1 = textFieldValue.text
-    ) {
-        Database.queries("%${textFieldValue.text}%")
-            .flowOn(Dispatchers.IO)
-            .distinctUntilChanged { old, new -> old.size == new.size }
-            .collect { value = it }
+    var history by persistList<SearchQuery>("search/online/history")
+
+    LaunchedEffect(textFieldValue.text) {
+        if (!context.preferences.getBoolean(pauseSearchHistoryKey, false)) {
+            Database.queries("%${textFieldValue.text}%")
+                .distinctUntilChanged { old, new -> old.size == new.size }
+                .collect { history = it }
+        }
     }
 
-    val suggestionsResult by produceSaveableOneShotState(
-        initialValue = null,
-        stateSaver = resultSaver(autoSaver<List<String>?>()),
-        textFieldValue.text
-    ) {
+    var suggestionsResult by persist<Result<List<String>?>?>("search/online/suggestionsResult")
+
+    LaunchedEffect(textFieldValue.text) {
         if (textFieldValue.text.isNotEmpty()) {
-            value = Innertube.searchSuggestions(SearchSuggestionsBody(input = textFieldValue.text))
+            delay(200)
+            suggestionsResult =
+                Innertube.searchSuggestions(SearchSuggestionsBody(input = textFieldValue.text))
         }
     }
 
     val playlistId = remember(textFieldValue.text) {
         val isPlaylistUrl = listOf(
             "https://www.youtube.com/playlist?",
+            "https://youtube.com/playlist?",
             "https://music.youtube.com/playlist?",
-            "https://m.youtube.com/playlist?",
+            "https://m.youtube.com/playlist?"
         ).any(textFieldValue.text::startsWith)
 
         if (isPlaylistUrl) textFieldValue.text.toUri().getQueryParameter("list") else null
@@ -160,7 +160,7 @@ fun OnlineSearch(
                             val isAlbum = playlistId.startsWith("OLAK5uy_")
 
                             SecondaryTextButton(
-                                text =  "View ${if (isAlbum) "album" else "playlist"}",
+                                text = "View ${if (isAlbum) "album" else "playlist"}",
                                 onClick = { onViewPlaylist(textFieldValue.text) }
                             )
                         }
@@ -172,7 +172,7 @@ fun OnlineSearch(
 
                         if (textFieldValue.text.isNotEmpty()) {
                             SecondaryTextButton(
-                                text =  "Clear",
+                                text = "Clear",
                                 onClick = { onTextFieldValueChanged(TextFieldValue()) }
                             )
                         }

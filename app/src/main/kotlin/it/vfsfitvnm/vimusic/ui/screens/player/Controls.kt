@@ -1,6 +1,5 @@
 package it.vfsfitvnm.vimusic.ui.screens.player
 
-import android.text.format.DateUtils
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.tween
@@ -21,10 +20,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.autoSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,13 +47,12 @@ import it.vfsfitvnm.vimusic.ui.styling.favoritesIcon
 import it.vfsfitvnm.vimusic.utils.bold
 import it.vfsfitvnm.vimusic.utils.forceSeekToNext
 import it.vfsfitvnm.vimusic.utils.forceSeekToPrevious
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
-import it.vfsfitvnm.vimusic.utils.rememberRepeatMode
+import it.vfsfitvnm.vimusic.utils.formatAsDuration
+import it.vfsfitvnm.vimusic.utils.rememberPreference
 import it.vfsfitvnm.vimusic.utils.secondary
 import it.vfsfitvnm.vimusic.utils.semiBold
-import kotlinx.coroutines.Dispatchers
+import it.vfsfitvnm.vimusic.utils.trackLoopEnabledKey
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
 
 @Composable
 fun Controls(
@@ -70,22 +69,18 @@ fun Controls(
     val binder = LocalPlayerServiceBinder.current
     binder?.player ?: return
 
-    val repeatMode by rememberRepeatMode(binder.player)
+    var trackLoopEnabled by rememberPreference(trackLoopEnabledKey, defaultValue = false)
 
     var scrubbingPosition by remember(mediaId) {
         mutableStateOf<Long?>(null)
     }
 
-    val likedAt by produceSaveableState<Long?>(
-        initialValue = null,
-        stateSaver = autoSaver(),
-        mediaId
-    ) {
-        Database
-            .likedAt(mediaId)
-            .flowOn(Dispatchers.IO)
-            .distinctUntilChanged()
-            .collect { value = it }
+    var likedAt by rememberSaveable {
+        mutableStateOf<Long?>(null)
+    }
+
+    LaunchedEffect(mediaId) {
+        Database.likedAt(mediaId).distinctUntilChanged().collect { likedAt = it }
     }
 
     val shouldBePlayingTransition = updateTransition(shouldBePlaying, label = "shouldBePlaying")
@@ -161,8 +156,7 @@ fun Controls(
                 .fillMaxWidth()
         ) {
             BasicText(
-                text = DateUtils.formatElapsedTime((scrubbingPosition ?: position) / 1000)
-                    .removePrefix("0"),
+                text = formatAsDuration(scrubbingPosition ?: position),
                 style = typography.xxs.semiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -170,7 +164,7 @@ fun Controls(
 
             if (duration != C.TIME_UNSET) {
                 BasicText(
-                    text = DateUtils.formatElapsedTime(duration / 1000).removePrefix("0"),
+                    text = formatAsDuration(duration),
                     style = typography.xxs.semiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -268,17 +262,8 @@ fun Controls(
 
             IconButton(
                 icon = R.drawable.infinite,
-                color = if (repeatMode == Player.REPEAT_MODE_ONE) {
-                    colorPalette.text
-                } else {
-                    colorPalette.textDisabled
-                },
-                onClick = {
-                    binder.player.repeatMode = when (binder.player.repeatMode) {
-                        Player.REPEAT_MODE_ONE -> Player.REPEAT_MODE_ALL
-                        else -> Player.REPEAT_MODE_ONE
-                    }
-                },
+                color = if (trackLoopEnabled) colorPalette.text else colorPalette.textDisabled,
+                onClick = { trackLoopEnabled = !trackLoopEnabled },
                 modifier = Modifier
                     .weight(1f)
                     .size(24.dp)

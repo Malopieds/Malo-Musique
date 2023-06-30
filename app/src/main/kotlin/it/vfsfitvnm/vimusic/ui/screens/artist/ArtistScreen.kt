@@ -8,23 +8,29 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.valentinilk.shimmer.shimmer
-import it.vfsfitvnm.route.RouteHandler
+import it.vfsfitvnm.compose.persist.PersistMapCleanup
+import it.vfsfitvnm.compose.persist.persist
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.bodies.BrowseBody
+import it.vfsfitvnm.innertube.models.bodies.ContinuationBody
+import it.vfsfitvnm.innertube.requests.artistPage
+import it.vfsfitvnm.innertube.requests.itemsPage
+import it.vfsfitvnm.innertube.utils.from
+import it.vfsfitvnm.compose.routing.RouteHandler
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Artist
 import it.vfsfitvnm.vimusic.query
-import it.vfsfitvnm.vimusic.savers.ArtistSaver
-import it.vfsfitvnm.vimusic.savers.InnertubeAlbumsPageSaver
-import it.vfsfitvnm.vimusic.savers.InnertubeArtistPageSaver
-import it.vfsfitvnm.vimusic.savers.InnertubeSongsPageSaver
-import it.vfsfitvnm.vimusic.savers.nullableSaver
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
 import it.vfsfitvnm.vimusic.ui.components.themed.HeaderIconButton
@@ -45,16 +51,11 @@ import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.utils.artistScreenTabIndexKey
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.forcePlay
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
 import it.vfsfitvnm.vimusic.utils.rememberPreference
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.bodies.BrowseBody
-import it.vfsfitvnm.youtubemusic.models.bodies.ContinuationBody
-import it.vfsfitvnm.youtubemusic.requests.artistPage
-import it.vfsfitvnm.youtubemusic.requests.itemsPage
-import it.vfsfitvnm.youtubemusic.utils.from
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 @ExperimentalFoundationApi
@@ -63,50 +64,41 @@ import kotlinx.coroutines.withContext
 fun ArtistScreen(browseId: String) {
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    val (tabIndex, onTabIndexChanged) = rememberPreference(
-        artistScreenTabIndexKey,
-        defaultValue = 0
-    )
+    var tabIndex by rememberPreference(artistScreenTabIndexKey, defaultValue = 0)
 
-    val artist by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(ArtistSaver),
-    ) {
+    PersistMapCleanup(tagPrefix = "artist/$browseId/")
+
+    var artist by persist<Artist?>("artist/$browseId/artist")
+
+    var artistPage by persist<Innertube.ArtistPage?>("artist/$browseId/artistPage")
+
+    LaunchedEffect(Unit) {
         Database
             .artist(browseId)
-            .flowOn(Dispatchers.IO)
-            .collect { value = it }
-    }
+            .combine(snapshotFlow { tabIndex }.map { it != 4 }) { artist, mustFetch -> artist to mustFetch }
+            .distinctUntilChanged()
+            .collect { (currentArtist, mustFetch) ->
+                artist = currentArtist
 
-    val youtubeArtist by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(InnertubeArtistPageSaver),
-        tabIndex < 4
-    ) {
-        if (value != null || (tabIndex == 4 && withContext(Dispatchers.IO) {
-                Database.artistTimestamp(
-                    browseId
-                )
-            } != null)) return@produceSaveableState
+                if (artistPage == null && (currentArtist?.timestamp == null || mustFetch)) {
+                    withContext(Dispatchers.IO) {
+                        Innertube.artistPage(BrowseBody(browseId = browseId))
+                            ?.onSuccess { currentArtistPage ->
+                                artistPage = currentArtistPage
 
-        withContext(Dispatchers.IO) {
-            Innertube.artistPage(BrowseBody(browseId = browseId))
-        }?.onSuccess { artistPage ->
-            value = artistPage
-
-            query {
-                Database.upsert(
-                    Artist(
-                        id = browseId,
-                        name = artistPage.name,
-                        thumbnailUrl = artistPage.thumbnail?.url,
-                        info = artistPage.description,
-                        timestamp = System.currentTimeMillis(),
-                        bookmarkedAt = artist?.bookmarkedAt
-                    )
-                )
+                                Database.upsert(
+                                    Artist(
+                                        id = browseId,
+                                        name = currentArtistPage.name,
+                                        thumbnailUrl = currentArtistPage.thumbnail?.url,
+                                        timestamp = System.currentTimeMillis(),
+                                        bookmarkedAt = currentArtist?.bookmarkedAt
+                                    )
+                                )
+                            }
+                    }
+                }
             }
-        }
     }
 
     RouteHandler(listenToGlobalEmitter = true) {
@@ -182,7 +174,7 @@ fun ArtistScreen(browseId: String) {
                 topIconButtonId = R.drawable.chevron_back,
                 onTopIconButtonClick = pop,
                 tabIndex = tabIndex,
-                onTabChanged = onTabIndexChanged,
+                onTabChanged = { tabIndex = it },
                 tabColumnContent = { Item ->
                     Item(0, "Overview", R.drawable.sparkles)
                     Item(1, "Songs", R.drawable.musical_notes)
@@ -194,13 +186,13 @@ fun ArtistScreen(browseId: String) {
                 saveableStateHolder.SaveableStateProvider(key = currentTabIndex) {
                     when (currentTabIndex) {
                         0 -> ArtistOverview(
-                            youtubeArtistPage = youtubeArtist,
+                            youtubeArtistPage = artistPage,
                             thumbnailContent = thumbnailContent,
                             headerContent = headerContent,
                             onAlbumClick = { albumRoute(it) },
-                            onViewAllSongsClick = { onTabIndexChanged(1) },
-                            onViewAllAlbumsClick = { onTabIndexChanged(2) },
-                            onViewAllSinglesClick = { onTabIndexChanged(3) },
+                            onViewAllSongsClick = { tabIndex = 1 },
+                            onViewAllAlbumsClick = { tabIndex = 2 },
+                            onViewAllSinglesClick = { tabIndex = 3 },
                         )
 
                         1 -> {
@@ -210,16 +202,16 @@ fun ArtistScreen(browseId: String) {
                             val thumbnailSizePx = thumbnailSizeDp.px
 
                             ItemsPage(
-                                stateSaver = InnertubeSongsPageSaver,
+                                tag = "artist/$browseId/songs",
                                 headerContent = headerContent,
-                                itemsPageProvider = youtubeArtist?.let {
+                                itemsPageProvider = artistPage?.let {
                                     ({ continuation ->
                                         continuation?.let {
                                             Innertube.itemsPage(
                                                 body = ContinuationBody(continuation = continuation),
                                                 fromMusicResponsiveListItemRenderer = Innertube.SongItem::from,
                                             )
-                                        } ?: youtubeArtist
+                                        } ?: artistPage
                                             ?.songsEndpoint
                                             ?.takeIf { it.browseId != null }
                                             ?.let { endpoint ->
@@ -233,7 +225,7 @@ fun ArtistScreen(browseId: String) {
                                             }
                                         ?: Result.success(
                                             Innertube.ItemsPage(
-                                                items = youtubeArtist?.songs,
+                                                items = artistPage?.songs,
                                                 continuation = null
                                             )
                                         )
@@ -273,17 +265,17 @@ fun ArtistScreen(browseId: String) {
                             val thumbnailSizePx = thumbnailSizeDp.px
 
                             ItemsPage(
-                                stateSaver = InnertubeAlbumsPageSaver,
+                                tag = "artist/$browseId/albums",
                                 headerContent = headerContent,
                                 emptyItemsText = "This artist didn't release any album",
-                                itemsPageProvider = youtubeArtist?.let {
+                                itemsPageProvider = artistPage?.let {
                                     ({ continuation ->
                                         continuation?.let {
                                             Innertube.itemsPage(
                                                 body = ContinuationBody(continuation = continuation),
                                                 fromMusicTwoRowItemRenderer = Innertube.AlbumItem::from,
                                             )
-                                        } ?: youtubeArtist
+                                        } ?: artistPage
                                             ?.albumsEndpoint
                                             ?.takeIf { it.browseId != null }
                                             ?.let { endpoint ->
@@ -297,7 +289,7 @@ fun ArtistScreen(browseId: String) {
                                             }
                                         ?: Result.success(
                                             Innertube.ItemsPage(
-                                                items = youtubeArtist?.albums,
+                                                items = artistPage?.albums,
                                                 continuation = null
                                             )
                                         )
@@ -323,17 +315,17 @@ fun ArtistScreen(browseId: String) {
                             val thumbnailSizePx = thumbnailSizeDp.px
 
                             ItemsPage(
-                                stateSaver = InnertubeAlbumsPageSaver,
+                                tag = "artist/$browseId/singles",
                                 headerContent = headerContent,
                                 emptyItemsText = "This artist didn't release any single",
-                                itemsPageProvider = youtubeArtist?.let {
+                                itemsPageProvider = artistPage?.let {
                                     ({ continuation ->
                                         continuation?.let {
                                             Innertube.itemsPage(
                                                 body = ContinuationBody(continuation = continuation),
                                                 fromMusicTwoRowItemRenderer = Innertube.AlbumItem::from,
                                             )
-                                        } ?: youtubeArtist
+                                        } ?: artistPage
                                             ?.singlesEndpoint
                                             ?.takeIf { it.browseId != null }
                                             ?.let { endpoint ->
@@ -347,7 +339,7 @@ fun ArtistScreen(browseId: String) {
                                             }
                                         ?: Result.success(
                                             Innertube.ItemsPage(
-                                                items = youtubeArtist?.singles,
+                                                items = artistPage?.singles,
                                                 continuation = null
                                             )
                                         )

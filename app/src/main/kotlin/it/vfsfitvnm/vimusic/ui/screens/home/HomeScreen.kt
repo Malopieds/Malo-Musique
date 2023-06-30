@@ -4,13 +4,15 @@ import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import it.vfsfitvnm.route.RouteHandler
-import it.vfsfitvnm.route.defaultStacking
-import it.vfsfitvnm.route.defaultStill
-import it.vfsfitvnm.route.defaultUnstacking
-import it.vfsfitvnm.route.isStacking
-import it.vfsfitvnm.route.isUnknown
-import it.vfsfitvnm.route.isUnstacking
+import androidx.compose.ui.platform.LocalContext
+import it.vfsfitvnm.compose.persist.PersistMapCleanup
+import it.vfsfitvnm.compose.routing.RouteHandler
+import it.vfsfitvnm.compose.routing.defaultStacking
+import it.vfsfitvnm.compose.routing.defaultStill
+import it.vfsfitvnm.compose.routing.defaultUnstacking
+import it.vfsfitvnm.compose.routing.isStacking
+import it.vfsfitvnm.compose.routing.isUnknown
+import it.vfsfitvnm.compose.routing.isUnstacking
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.SearchQuery
@@ -31,6 +33,8 @@ import it.vfsfitvnm.vimusic.ui.screens.searchresult.SearchResultScreen
 import it.vfsfitvnm.vimusic.ui.screens.settings.SettingsScreen
 import it.vfsfitvnm.vimusic.ui.screens.settingsRoute
 import it.vfsfitvnm.vimusic.utils.homeScreenTabIndexKey
+import it.vfsfitvnm.vimusic.utils.pauseSearchHistoryKey
+import it.vfsfitvnm.vimusic.utils.preferences
 import it.vfsfitvnm.vimusic.utils.rememberPreference
 
 @ExperimentalFoundationApi
@@ -38,6 +42,8 @@ import it.vfsfitvnm.vimusic.utils.rememberPreference
 @Composable
 fun HomeScreen(onPlaylistUrl: (String) -> Unit) {
     val saveableStateHolder = rememberSaveableStateHolder()
+
+    PersistMapCleanup("home/")
 
     RouteHandler(
         listenToGlobalEmitter = true,
@@ -50,6 +56,7 @@ fun HomeScreen(onPlaylistUrl: (String) -> Unit) {
                     initialState.route == searchResultRoute && targetState.route == searchRoute -> defaultUnstacking
                     else -> defaultStill
                 }
+
                 else -> defaultStill
             }
         }
@@ -82,14 +89,18 @@ fun HomeScreen(onPlaylistUrl: (String) -> Unit) {
         }
 
         searchRoute { initialTextInput ->
+            val context = LocalContext.current
+
             SearchScreen(
                 initialTextInput = initialTextInput,
                 onSearch = { query ->
                     pop()
                     searchResultRoute(query)
 
-                    query {
-                        Database.insert(SearchQuery(query = query))
+                    if (!context.preferences.getBoolean(pauseSearchHistoryKey, false)) {
+                        query {
+                            Database.insert(SearchQuery(query = query))
+                        }
                     }
                 },
                 onViewPlaylist = onPlaylistUrl
@@ -113,7 +124,7 @@ fun HomeScreen(onPlaylistUrl: (String) -> Unit) {
                     Item(2, "Playlists", R.drawable.playlist)
                     Item(3, "Artists", R.drawable.person)
                     Item(4, "Albums", R.drawable.disc)
-                },
+                }
             ) { currentTabIndex ->
                 saveableStateHolder.SaveableStateProvider(key = currentTabIndex) {
                     when (currentTabIndex) {
@@ -123,18 +134,22 @@ fun HomeScreen(onPlaylistUrl: (String) -> Unit) {
                             onPlaylistClick = { playlistRoute(it) },
                             onSearchClick = { searchRoute("") }
                         )
+
                         1 -> HomeSongs(
                             onSearchClick = { searchRoute("") }
                         )
+
                         2 -> HomePlaylists(
                             onBuiltInPlaylist = { builtInPlaylistRoute(it) },
                             onPlaylistClick = { localPlaylistRoute(it.id) },
                             onSearchClick = { searchRoute("") }
                         )
+
                         3 -> HomeArtistList(
                             onArtistClick = { artistRoute(it.id) },
                             onSearchClick = { searchRoute("") }
                         )
+
                         4 -> HomeAlbums(
                             onAlbumClick = { albumRoute(it.id) },
                             onSearchClick = { searchRoute("") }

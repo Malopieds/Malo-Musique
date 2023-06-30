@@ -1,6 +1,7 @@
 package it.vfsfitvnm.vimusic.ui.screens.settings
 
 import android.annotation.SuppressLint
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -14,8 +15,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.autoSaver
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import it.vfsfitvnm.vimusic.Database
@@ -27,15 +29,13 @@ import it.vfsfitvnm.vimusic.service.PlayerService
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.utils.intent
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
+import it.vfsfitvnm.vimusic.utils.toast
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import kotlin.system.exitProcess
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flowOn
 
 @ExperimentalAnimationApi
 @Composable
@@ -43,12 +43,9 @@ fun DatabaseSettings() {
     val context = LocalContext.current
     val (colorPalette) = LocalAppearance.current
 
-    val queriesCount by produceSaveableState(initialValue = 0, stateSaver = autoSaver()) {
-        Database.queriesCount()
-            .flowOn(Dispatchers.IO)
-            .distinctUntilChanged()
-            .collect { value = it }
-    }
+    val eventsCount by remember {
+        Database.eventsCount().distinctUntilChanged()
+    }.collectAsState(initial = 0)
 
     val backupLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.sqlite3")) { uri ->
@@ -86,7 +83,6 @@ fun DatabaseSettings() {
             }
         }
 
-
     Column(
         modifier = Modifier
             .background(colorPalette.background0)
@@ -100,21 +96,17 @@ fun DatabaseSettings() {
     ) {
         Header(title = "Database")
 
-        SettingsEntryGroupText(title = "SEARCH HISTORY")
+        SettingsEntryGroupText(title = "CLEANUP")
 
         SettingsEntry(
-            title = "Clear search history",
-            text = if (queriesCount > 0) {
-                "Delete $queriesCount search queries"
+            title = "Reset quick picks",
+            text = if (eventsCount > 0) {
+                "Delete $eventsCount playback events"
             } else {
-                "History is empty"
+                "Quick picks are cleared"
             },
-            isEnabled = queriesCount > 0,
-            onClick = {
-                query {
-                    Database.clearQueries()
-                }
-            }
+            isEnabled = eventsCount > 0,
+            onClick = { query(Database::clearEvents) }
         )
 
         SettingsGroupSpacer()
@@ -129,7 +121,12 @@ fun DatabaseSettings() {
             onClick = {
                 @SuppressLint("SimpleDateFormat")
                 val dateFormat = SimpleDateFormat("yyyyMMddHHmmss")
-                backupLauncher.launch("vimusic_${dateFormat.format(Date())}.db")
+
+                try {
+                    backupLauncher.launch("vimusic_${dateFormat.format(Date())}.db")
+                } catch (e: ActivityNotFoundException) {
+                    context.toast("Couldn't find an application to create documents")
+                }
             }
         )
 
@@ -143,13 +140,17 @@ fun DatabaseSettings() {
             title = "Restore",
             text = "Import the database from the external storage",
             onClick = {
-                restoreLauncher.launch(
-                    arrayOf(
-                        "application/x-sqlite3",
-                        "application/vnd.sqlite3",
-                        "application/octet-stream"
+                try {
+                    restoreLauncher.launch(
+                        arrayOf(
+                            "application/vnd.sqlite3",
+                            "application/x-sqlite3",
+                            "application/octet-stream"
+                        )
                     )
-                )
+                } catch (e: ActivityNotFoundException) {
+                    context.toast("Couldn't find an application to open documents")
+                }
             }
         )
     }

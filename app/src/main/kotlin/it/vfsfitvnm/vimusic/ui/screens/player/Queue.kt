@@ -1,6 +1,13 @@
 package it.vfsfitvnm.vimusic.ui.screens.player
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -11,6 +18,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -28,22 +36,28 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import com.valentinilk.shimmer.shimmer
-import it.vfsfitvnm.reordering.ReorderingLazyColumn
-import it.vfsfitvnm.reordering.animateItemPlacement
-import it.vfsfitvnm.reordering.draggedItem
-import it.vfsfitvnm.reordering.rememberReorderingState
-import it.vfsfitvnm.reordering.reorder
+import it.vfsfitvnm.compose.reordering.ReorderingLazyColumn
+import it.vfsfitvnm.compose.reordering.animateItemPlacement
+import it.vfsfitvnm.compose.reordering.draggedItem
+import it.vfsfitvnm.compose.reordering.rememberReorderingState
+import it.vfsfitvnm.compose.reordering.reorder
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.ui.components.BottomSheet
@@ -59,12 +73,14 @@ import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.onOverlay
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.utils.DisposableListener
 import it.vfsfitvnm.vimusic.utils.medium
-import it.vfsfitvnm.vimusic.utils.rememberMediaItemIndex
-import it.vfsfitvnm.vimusic.utils.rememberShouldBePlaying
-import it.vfsfitvnm.vimusic.utils.rememberWindows
+import it.vfsfitvnm.vimusic.utils.queueLoopEnabledKey
+import it.vfsfitvnm.vimusic.utils.rememberPreference
+import it.vfsfitvnm.vimusic.utils.shouldBePlaying
 import it.vfsfitvnm.vimusic.utils.shuffleQueue
 import it.vfsfitvnm.vimusic.utils.smoothScrollToTop
+import it.vfsfitvnm.vimusic.utils.windows
 import kotlinx.coroutines.launch
 
 @ExperimentalFoundationApi
@@ -110,23 +126,60 @@ fun Queue(
 
         binder?.player ?: return@BottomSheet
 
+        val player = binder.player
+
+        var queueLoopEnabled by rememberPreference(queueLoopEnabledKey, defaultValue = true)
+
         val menuState = LocalMenuState.current
 
         val thumbnailSizeDp = Dimensions.thumbnails.song
         val thumbnailSizePx = thumbnailSizeDp.px
 
-        val mediaItemIndex by rememberMediaItemIndex(binder.player)
-        val windows by rememberWindows(binder.player)
-        val shouldBePlaying by rememberShouldBePlaying(binder.player)
+        var mediaItemIndex by remember {
+            mutableStateOf(if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex)
+        }
+
+        var windows by remember {
+            mutableStateOf(player.currentTimeline.windows)
+        }
+
+        var shouldBePlaying by remember {
+            mutableStateOf(binder.player.shouldBePlaying)
+        }
+
+        player.DisposableListener {
+            object : Player.Listener {
+                override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                    mediaItemIndex =
+                        if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex
+                }
+
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    windows = timeline.windows
+                    mediaItemIndex =
+                        if (player.mediaItemCount == 0) -1 else player.currentMediaItemIndex
+                }
+
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    shouldBePlaying = binder.player.shouldBePlaying
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    shouldBePlaying = binder.player.shouldBePlaying
+                }
+            }
+        }
 
         val reorderingState = rememberReorderingState(
             lazyListState = rememberLazyListState(initialFirstVisibleItemIndex = mediaItemIndex),
             key = windows,
-            onDragEnd = binder.player::moveMediaItem,
+            onDragEnd = player::moveMediaItem,
             extraItemCount = 0
         )
 
         val rippleIndication = rememberRipple(bounded = false)
+
+        val musicBarsTransition = updateTransition(targetState = mediaItemIndex, label = "")
 
         Column {
             Box(
@@ -137,7 +190,8 @@ fun Queue(
                 ReorderingLazyColumn(
                     reorderingState = reorderingState,
                     contentPadding = windowInsets
-                        .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top).asPaddingValues(),
+                        .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+                        .asPaddingValues(),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
                         .nestedScroll(layoutState.preUpPostDownNestedScrollConnection)
@@ -154,10 +208,10 @@ fun Queue(
                             thumbnailSizePx = thumbnailSizePx,
                             thumbnailSizeDp = thumbnailSizeDp,
                             onThumbnailContent = {
-                                androidx.compose.animation.AnimatedVisibility(
-                                    visible = isPlayingThisMediaItem,
-                                    enter = fadeIn(),
-                                    exit = fadeOut(),
+                                musicBarsTransition.AnimatedVisibility(
+                                    visible = { it == window.firstPeriodIndex },
+                                    enter = fadeIn(tween(800)),
+                                    exit = fadeOut(tween(800)),
                                 ) {
                                     Box(
                                         contentAlignment = Alignment.Center,
@@ -214,13 +268,13 @@ fun Queue(
                                     onClick = {
                                         if (isPlayingThisMediaItem) {
                                             if (shouldBePlaying) {
-                                                binder.player.pause()
+                                                player.pause()
                                             } else {
-                                                binder.player.play()
+                                                player.play()
                                             }
                                         } else {
-                                            binder.player.playWhenReady = true
-                                            binder.player.seekToDefaultPosition(window.firstPeriodIndex)
+                                            player.seekToDefaultPosition(window.firstPeriodIndex)
+                                            player.playWhenReady = true
                                         }
                                     }
                                 )
@@ -240,11 +294,10 @@ fun Queue(
                             ) {
                                 repeat(3) { index ->
                                     SongItemPlaceholder(
-                                        thumbnailSizeDp = Dimensions.thumbnails.song,
+                                        thumbnailSizeDp = thumbnailSizeDp,
                                         modifier = Modifier
                                             .alpha(1f - index * 0.125f)
                                             .fillMaxWidth()
-                                            .padding(vertical = 4.dp, horizontal = 16.dp)
                                     )
                                 }
                             }
@@ -261,7 +314,7 @@ fun Queue(
                         reorderingState.coroutineScope.launch {
                             reorderingState.lazyListState.smoothScrollToTop()
                         }.invokeOnCompletion {
-                            binder.player.shuffleQueue()
+                            player.shuffleQueue()
                         }
                     }
                 )
@@ -297,6 +350,38 @@ fun Queue(
                         .align(Alignment.Center)
                         .size(18.dp)
                 )
+
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable { queueLoopEnabled = !queueLoopEnabled }
+                        .background(colorPalette.background1)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .align(Alignment.CenterEnd)
+                        .animateContentSize()
+                ) {
+                    BasicText(
+                        text = "Queue loop ",
+                        style = typography.xxs.medium,
+                    )
+
+                    AnimatedContent(
+                        targetState = queueLoopEnabled,
+                        transitionSpec = {
+                            val slideDirection = if (targetState) AnimatedContentScope.SlideDirection.Up else AnimatedContentScope.SlideDirection.Down
+
+                            ContentTransform(
+                                targetContentEnter = slideIntoContainer(slideDirection) + fadeIn(),
+                                initialContentExit = slideOutOfContainer(slideDirection) + fadeOut(),
+                            )
+                        }
+                    ) {
+                        BasicText(
+                            text = if (it) "on" else "off",
+                            style = typography.xxs.medium,
+                        )
+                    }
+                }
             }
         }
     }

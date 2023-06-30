@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.graphics.Bitmap
-import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.Toast
@@ -49,6 +48,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -57,6 +58,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import com.valentinilk.shimmer.LocalShimmerTheme
 import com.valentinilk.shimmer.defaultShimmerTheme
+import it.vfsfitvnm.compose.persist.PersistMap
+import it.vfsfitvnm.compose.persist.PersistMapOwner
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.bodies.BrowseBody
+import it.vfsfitvnm.innertube.requests.playlistPage
+import it.vfsfitvnm.innertube.requests.song
 import it.vfsfitvnm.vimusic.enums.ColorPaletteMode
 import it.vfsfitvnm.vimusic.enums.ColorPaletteName
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
@@ -75,19 +82,18 @@ import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.colorPaletteOf
 import it.vfsfitvnm.vimusic.ui.styling.dynamicColorPaletteOf
 import it.vfsfitvnm.vimusic.ui.styling.typographyOf
+import it.vfsfitvnm.vimusic.utils.applyFontPaddingKey
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.colorPaletteModeKey
 import it.vfsfitvnm.vimusic.utils.colorPaletteNameKey
 import it.vfsfitvnm.vimusic.utils.forcePlay
 import it.vfsfitvnm.vimusic.utils.getEnum
 import it.vfsfitvnm.vimusic.utils.intent
-import it.vfsfitvnm.vimusic.utils.listener
+import it.vfsfitvnm.vimusic.utils.isAtLeastAndroid6
+import it.vfsfitvnm.vimusic.utils.isAtLeastAndroid8
 import it.vfsfitvnm.vimusic.utils.preferences
 import it.vfsfitvnm.vimusic.utils.thumbnailRoundnessKey
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.bodies.BrowseBody
-import it.vfsfitvnm.youtubemusic.requests.playlistPage
-import it.vfsfitvnm.youtubemusic.requests.song
+import it.vfsfitvnm.vimusic.utils.useSystemFontKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.filterNotNull
@@ -95,7 +101,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PersistMapOwner {
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             if (service is PlayerService.Binder) {
@@ -110,19 +116,19 @@ class MainActivity : ComponentActivity() {
 
     private var binder by mutableStateOf<PlayerService.Binder?>(null)
 
+    override lateinit var persistMap: PersistMap
+
     override fun onStart() {
         super.onStart()
         bindService(intent<PlayerService>(), serviceConnection, Context.BIND_AUTO_CREATE)
     }
 
-    override fun onStop() {
-        unbindService(serviceConnection)
-        super.onStop()
-    }
-
     @OptIn(ExperimentalFoundationApi::class, ExperimentalAnimationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        @Suppress("DEPRECATION", "UNCHECKED_CAST")
+        persistMap = lastCustomNonConfigurationInstance as? PersistMap ?: PersistMap()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -142,6 +148,9 @@ class MainActivity : ComponentActivity() {
                     val thumbnailRoundness =
                         getEnum(thumbnailRoundnessKey, ThumbnailRoundness.Light)
 
+                    val useSystemFont = getBoolean(useSystemFontKey, false)
+                    val applyFontPadding = getBoolean(applyFontPaddingKey, false)
+
                     val colorPalette =
                         colorPaletteOf(colorPaletteName, colorPaletteMode, isSystemInDarkTheme)
 
@@ -150,7 +159,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         Appearance(
                             colorPalette = colorPalette,
-                            typography = typographyOf(colorPalette.text),
+                            typography = typographyOf(colorPalette.text, useSystemFont, applyFontPadding),
                             thumbnailShape = thumbnailRoundness.shape()
                         )
                     )
@@ -177,7 +186,7 @@ class MainActivity : ComponentActivity() {
 
                             appearance = appearance.copy(
                                 colorPalette = colorPalette,
-                                typography = typographyOf(colorPalette.text)
+                                typography = appearance.typography.copy(colorPalette.text)
                             )
 
                             return@setBitmapListener
@@ -190,7 +199,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 appearance = appearance.copy(
                                     colorPalette = it,
-                                    typography = typographyOf(it.text)
+                                    typography = appearance.typography.copy(it.text)
                                 )
                             }
                         }
@@ -229,7 +238,7 @@ class MainActivity : ComponentActivity() {
 
                                     appearance = appearance.copy(
                                         colorPalette = colorPalette,
-                                        typography = typographyOf(colorPalette.text),
+                                        typography = appearance.typography.copy(colorPalette.text),
                                     )
                                 }
                             }
@@ -240,6 +249,15 @@ class MainActivity : ComponentActivity() {
 
                                 appearance = appearance.copy(
                                     thumbnailShape = thumbnailRoundness.shape()
+                                )
+                            }
+
+                            useSystemFontKey, applyFontPaddingKey -> {
+                                val useSystemFont = sharedPreferences.getBoolean(useSystemFontKey, false)
+                                val applyFontPadding = sharedPreferences.getBoolean(applyFontPaddingKey, false)
+
+                                appearance = appearance.copy(
+                                    typography = typographyOf(appearance.colorPalette.text, useSystemFont, applyFontPadding),
                                 )
                             }
                         }
@@ -327,7 +345,8 @@ class MainActivity : ComponentActivity() {
                     LocalRippleTheme provides rippleTheme,
                     LocalShimmerTheme provides shimmerTheme,
                     LocalPlayerServiceBinder provides binder,
-                    LocalPlayerAwareWindowInsets provides playerAwareWindowInsets
+                    LocalPlayerAwareWindowInsets provides playerAwareWindowInsets,
+                    LocalLayoutDirection provides LayoutDirection.Ltr
                 ) {
                     HomeScreen(
                         onPlaylistUrl = { url ->
@@ -366,7 +385,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    player.listener(object : Player.Listener {
+                    val listener = object : Player.Listener {
                         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                             if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED && mediaItem != null) {
                                 if (mediaItem.mediaMetadata.extras?.getBoolean("isFromPersistentQueue") != true) {
@@ -376,7 +395,11 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
-                    })
+                    }
+
+                    player.addListener(listener)
+
+                    onDispose { player.removeListener(listener) }
                 }
             }
         }
@@ -430,18 +453,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onRetainCustomNonConfigurationInstance() = persistMap
+
+    override fun onStop() {
+        unbindService(serviceConnection)
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        if (!isChangingConfigurations) {
+            persistMap.clear()
+        }
+
+        super.onDestroy()
+    }
+
     private fun setSystemBarAppearance(isDark: Boolean) {
         with(WindowCompat.getInsetsController(window, window.decorView.rootView)) {
             isAppearanceLightStatusBars = !isDark
             isAppearanceLightNavigationBars = !isDark
         }
 
-        if (Build.VERSION.SDK_INT < 23) {
+        if (!isAtLeastAndroid6) {
             window.statusBarColor =
                 (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
         }
 
-        if (Build.VERSION.SDK_INT < 26) {
+        if (!isAtLeastAndroid8) {
             window.navigationBarColor =
                 (if (isDark) Color.Transparent else Color.Black.copy(alpha = 0.2f)).toArgb()
         }

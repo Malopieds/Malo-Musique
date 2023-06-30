@@ -6,23 +6,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import it.vfsfitvnm.compose.persist.persist
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.only
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
-import it.vfsfitvnm.vimusic.models.DetailedSong
-import it.vfsfitvnm.vimusic.savers.DetailedSongListSaver
-import it.vfsfitvnm.vimusic.savers.nullableSaver
+import it.vfsfitvnm.vimusic.models.Song
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
 import it.vfsfitvnm.vimusic.ui.components.ShimmerHost
 import it.vfsfitvnm.vimusic.ui.components.themed.FloatingActionsContainerWithScrollToTop
@@ -38,9 +40,6 @@ import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
 
 @ExperimentalFoundationApi
 @ExperimentalAnimationApi
@@ -54,14 +53,10 @@ fun ArtistLocalSongs(
     val (colorPalette) = LocalAppearance.current
     val menuState = LocalMenuState.current
 
-    val songs by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(DetailedSongListSaver)
-    ) {
-        Database
-            .artistSongs(browseId)
-            .flowOn(Dispatchers.IO)
-            .collect { value = it }
+    var songs by persist<List<Song>?>("artist/$browseId/localSongs")
+
+    LaunchedEffect(Unit) {
+        Database.artistSongs(browseId).collect { songs = it }
     }
 
     val songThumbnailSizeDp = Dimensions.thumbnails.song
@@ -83,13 +78,13 @@ fun ArtistLocalSongs(
                     key = "header",
                     contentType = 0
                 ) {
-                    Column {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         headerContent {
                             SecondaryTextButton(
                                 text = "Enqueue",
                                 enabled = !songs.isNullOrEmpty(),
                                 onClick = {
-                                    binder?.player?.enqueue(songs!!.map(DetailedSong::asMediaItem))
+                                    binder?.player?.enqueue(songs!!.map(Song::asMediaItem))
                                 }
                             )
                         }
@@ -120,7 +115,7 @@ fun ArtistLocalSongs(
                                     onClick = {
                                         binder?.stopRadio()
                                         binder?.player?.forcePlayAtIndex(
-                                            songs.map(DetailedSong::asMediaItem),
+                                            songs.map(Song::asMediaItem),
                                             index
                                         )
                                     }
@@ -144,7 +139,7 @@ fun ArtistLocalSongs(
                         if (songs.isNotEmpty()) {
                             binder?.stopRadio()
                             binder?.player?.forcePlayFromBeginning(
-                                songs.shuffled().map(DetailedSong::asMediaItem)
+                                songs.shuffled().map(Song::asMediaItem)
                             )
                         }
                     }

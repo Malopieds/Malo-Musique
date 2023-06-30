@@ -29,21 +29,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import it.vfsfitvnm.compose.persist.persist
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.NavigationEndpoint
+import it.vfsfitvnm.innertube.models.bodies.NextBody
+import it.vfsfitvnm.innertube.requests.relatedPage
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
-import it.vfsfitvnm.vimusic.savers.DetailedSongSaver
-import it.vfsfitvnm.vimusic.savers.InnertubeRelatedPageSaver
-import it.vfsfitvnm.vimusic.savers.nullableSaver
-import it.vfsfitvnm.vimusic.savers.resultSaver
+import it.vfsfitvnm.vimusic.models.Song
+import it.vfsfitvnm.vimusic.query
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
 import it.vfsfitvnm.vimusic.ui.components.ShimmerHost
 import it.vfsfitvnm.vimusic.ui.components.themed.FloatingActionsContainerWithScrollToTop
@@ -65,18 +70,10 @@ import it.vfsfitvnm.vimusic.utils.SnapLayoutInfoProvider
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.center
 import it.vfsfitvnm.vimusic.utils.forcePlay
-import it.vfsfitvnm.vimusic.utils.produceSaveableOneShotState
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
+import it.vfsfitvnm.vimusic.utils.isLandscape
 import it.vfsfitvnm.vimusic.utils.secondary
 import it.vfsfitvnm.vimusic.utils.semiBold
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
-import it.vfsfitvnm.youtubemusic.models.bodies.NextBody
-import it.vfsfitvnm.youtubemusic.requests.relatedPage
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flowOn
 
 @ExperimentalFoundationApi
 @ExperimentalAnimationApi
@@ -92,23 +89,18 @@ fun QuickPicks(
     val menuState = LocalMenuState.current
     val windowInsets = LocalPlayerAwareWindowInsets.current
 
-    val trending by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(DetailedSongSaver),
-    ) {
-        Database.trending()
-            .flowOn(Dispatchers.IO)
-            .filterNotNull()
-            .distinctUntilChanged()
-            .collect { value = it }
-    }
+    var trending by persist<Song?>("home/trending")
 
-    val relatedPageResult by produceSaveableOneShotState(
-        initialValue = null,
-        stateSaver = resultSaver(nullableSaver(InnertubeRelatedPageSaver)),
-        trending?.id
-    ) {
-        value = Innertube.relatedPage(NextBody(videoId = (trending?.id ?: "J7p4bzqLvCw")))
+    var relatedPageResult by persist<Result<Innertube.RelatedPage?>?>(tag = "home/relatedPageResult")
+
+    LaunchedEffect(Unit) {
+        Database.trending().distinctUntilChanged().collect { song ->
+            if ((song == null && relatedPageResult == null) || trending?.id != song?.id) {
+                relatedPageResult =
+                    Innertube.relatedPage(NextBody(videoId = (song?.id ?: "J7p4bzqLvCw")))
+            }
+            trending = song
+        }
     }
 
     val songThumbnailSizeDp = Dimensions.thumbnails.song
@@ -120,18 +112,8 @@ fun QuickPicks(
     val playlistThumbnailSizeDp = 108.dp
     val playlistThumbnailSizePx = playlistThumbnailSizeDp.px
 
-    val quickPicksLazyGridItemWidthFactor = 0.9f
-    val quickPicksLazyGridState = rememberLazyGridState()
-    val snapLayoutInfoProvider = remember(quickPicksLazyGridState) {
-        SnapLayoutInfoProvider(
-            lazyGridState = quickPicksLazyGridState,
-            positionInLayout = {layoutSize, itemSize ->
-                (layoutSize * quickPicksLazyGridItemWidthFactor / 2f - itemSize / 2f)
-            }
-        )
-    }
-
     val scrollState = rememberScrollState()
+    val quickPicksLazyGridState = rememberLazyGridState()
 
     val endPaddingValues = windowInsets.only(WindowInsetsSides.End).asPaddingValues()
 
@@ -141,6 +123,21 @@ fun QuickPicks(
         .padding(endPaddingValues)
 
     BoxWithConstraints {
+        val quickPicksLazyGridItemWidthFactor = if (isLandscape && maxWidth * 0.475f >= 320.dp) {
+            0.475f
+        } else {
+            0.9f
+        }
+
+        val snapLayoutInfoProvider = remember(quickPicksLazyGridState) {
+            SnapLayoutInfoProvider(
+                lazyGridState = quickPicksLazyGridState,
+                positionInLayout = { layoutSize, itemSize ->
+                    (layoutSize * quickPicksLazyGridItemWidthFactor / 2f - itemSize / 2f)
+                }
+            )
+        }
+
         val itemInHorizontalGridWidth = maxWidth * quickPicksLazyGridItemWidthFactor
 
         Column(
@@ -148,7 +145,11 @@ fun QuickPicks(
                 .background(colorPalette.background0)
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(windowInsets.only(WindowInsetsSides.Vertical).asPaddingValues())
+                .padding(
+                    windowInsets
+                        .only(WindowInsetsSides.Vertical)
+                        .asPaddingValues()
+                )
         ) {
             Header(
                 title = "Quick picks",
@@ -173,13 +174,13 @@ fun QuickPicks(
                                 thumbnailSizePx = songThumbnailSizePx,
                                 thumbnailSizeDp = songThumbnailSizeDp,
                                 trailingContent = {
-                                      Image(
-                                          painter = painterResource(R.drawable.star),
-                                          contentDescription = null,
-                                          colorFilter = ColorFilter.tint(colorPalette.accent),
-                                          modifier = Modifier
-                                              .size(16.dp)
-                                      )
+                                    Image(
+                                        painter = painterResource(R.drawable.star),
+                                        contentDescription = null,
+                                        colorFilter = ColorFilter.tint(colorPalette.accent),
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                    )
                                 },
                                 modifier = Modifier
                                     .combinedClickable(
@@ -188,6 +189,11 @@ fun QuickPicks(
                                                 NonQueuedMediaItemMenu(
                                                     onDismiss = menuState::hide,
                                                     mediaItem = song.asMediaItem,
+                                                    onRemoveFromQuickPicks = {
+                                                        query {
+                                                            Database.clearEventsFor(song.id)
+                                                        }
+                                                    }
                                                 )
                                             }
                                         },
@@ -207,7 +213,8 @@ fun QuickPicks(
                     }
 
                     items(
-                        items = related.songs?.dropLast(if (trending == null) 0 else 1) ?: emptyList(),
+                        items = related.songs?.dropLast(if (trending == null) 0 else 1)
+                            ?: emptyList(),
                         key = Innertube.SongItem::key
                     ) { song ->
                         SongItem(
@@ -220,7 +227,7 @@ fun QuickPicks(
                                         menuState.display {
                                             NonQueuedMediaItemMenu(
                                                 onDismiss = menuState::hide,
-                                                mediaItem = song.asMediaItem,
+                                                mediaItem = song.asMediaItem
                                             )
                                         }
                                     },
@@ -312,6 +319,8 @@ fun QuickPicks(
                         }
                     }
                 }
+
+                Unit
             } ?: relatedPageResult?.exceptionOrNull()?.let {
                 BasicText(
                     text = "An error has occurred",

@@ -1,11 +1,11 @@
 package it.vfsfitvnm.vimusic.ui.components.themed
 
 import android.content.Intent
-import android.text.format.DateUtils
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.with
 import androidx.compose.foundation.Image
@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,8 +22,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,12 +43,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
+import it.vfsfitvnm.innertube.models.NavigationEndpoint
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.PlaylistSortBy
 import it.vfsfitvnm.vimusic.enums.SortOrder
-import it.vfsfitvnm.vimusic.models.DetailedSong
+import it.vfsfitvnm.vimusic.models.Info
 import it.vfsfitvnm.vimusic.models.Playlist
 import it.vfsfitvnm.vimusic.models.Song
 import it.vfsfitvnm.vimusic.models.SongPlaylistMap
@@ -62,17 +66,20 @@ import it.vfsfitvnm.vimusic.utils.addNext
 import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlay
+import it.vfsfitvnm.vimusic.utils.formatAsDuration
+import it.vfsfitvnm.vimusic.utils.medium
 import it.vfsfitvnm.vimusic.utils.semiBold
-import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
+import it.vfsfitvnm.vimusic.utils.thumbnail
+import kotlin.system.measureTimeMillis
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.withContext
 
 @ExperimentalAnimationApi
 @Composable
 fun InHistoryMediaItemMenu(
     onDismiss: () -> Unit,
-    song: DetailedSong,
+    song: Song,
     modifier: Modifier = Modifier
 ) {
     val binder = LocalPlayerServiceBinder.current
@@ -83,7 +90,7 @@ fun InHistoryMediaItemMenu(
 
     if (isHiding) {
         ConfirmationDialog(
-            text = "Do you really hide this song? Its playback time and cache will be wiped.\nThis action is irreversible.",
+            text = "Do you really want to hide this song? Its playback time and cache will be wiped.\nThis action is irreversible.",
             onDismiss = { isHiding = false },
             onConfirm = {
                 onDismiss()
@@ -110,7 +117,7 @@ fun InPlaylistMediaItemMenu(
     onDismiss: () -> Unit,
     playlistId: Long,
     positionInPlaylist: Int,
-    song: DetailedSong,
+    song: Song,
     modifier: Modifier = Modifier
 ) {
     NonQueuedMediaItemMenu(
@@ -134,6 +141,7 @@ fun NonQueuedMediaItemMenu(
     modifier: Modifier = Modifier,
     onRemoveFromPlaylist: (() -> Unit)? = null,
     onHideFromDatabase: (() -> Unit)? = null,
+    onRemoveFromQuickPicks: (() -> Unit)? = null,
 ) {
     val binder = LocalPlayerServiceBinder.current
 
@@ -154,6 +162,7 @@ fun NonQueuedMediaItemMenu(
         onEnqueue = { binder?.player?.enqueue(mediaItem) },
         onRemoveFromPlaylist = onRemoveFromPlaylist,
         onHideFromDatabase = onHideFromDatabase,
+        onRemoveFromQuickPicks = onRemoveFromQuickPicks,
         modifier = modifier
     )
 }
@@ -192,6 +201,7 @@ fun BaseMediaItemMenu(
     onRemoveFromQueue: (() -> Unit)? = null,
     onRemoveFromPlaylist: (() -> Unit)? = null,
     onHideFromDatabase: (() -> Unit)? = null,
+    onRemoveFromQuickPicks: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
 
@@ -232,6 +242,7 @@ fun BaseMediaItemMenu(
 
             context.startActivity(Intent.createChooser(sendIntent, null))
         },
+        onRemoveFromQuickPicks = onRemoveFromQuickPicks,
         modifier = modifier
     )
 }
@@ -253,6 +264,7 @@ fun MediaItemMenu(
     onAddToPlaylist: ((Playlist, Int) -> Unit)? = null,
     onGoToAlbum: ((String) -> Unit)? = null,
     onGoToArtist: ((String) -> Unit)? = null,
+    onRemoveFromQuickPicks: (() -> Unit)? = null,
     onShare: () -> Unit
 ) {
     val (colorPalette) = LocalAppearance.current
@@ -266,15 +278,43 @@ fun MediaItemMenu(
         mutableStateOf(0.dp)
     }
 
-    val likedAt by remember(mediaItem.mediaId) {
-        Database.likedAt(mediaItem.mediaId).distinctUntilChanged()
-    }.collectAsState(initial = null, context = Dispatchers.IO)
+    var albumInfo by remember {
+        mutableStateOf(mediaItem.mediaMetadata.extras?.getString("albumId")?.let { albumId ->
+            Info(albumId, null)
+        })
+    }
+
+    var artistsInfo by remember {
+        mutableStateOf(
+            mediaItem.mediaMetadata.extras?.getStringArrayList("artistNames")?.let { artistNames ->
+                mediaItem.mediaMetadata.extras?.getStringArrayList("artistIds")?.let { artistIds ->
+                    artistNames.zip(artistIds).map { (authorName, authorId) ->
+                        Info(authorId, authorName)
+                    }
+                }
+            }
+        )
+    }
+
+    var likedAt by remember {
+        mutableStateOf<Long?>(null)
+    }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            if (albumInfo == null) albumInfo = Database.songAlbumInfo(mediaItem.mediaId)
+            if (artistsInfo == null) artistsInfo = Database.songArtistInfo(mediaItem.mediaId)
+
+            Database.likedAt(mediaItem.mediaId).collect { likedAt = it }
+        }
+    }
 
     AnimatedContent(
         targetState = isViewingPlaylists,
         transitionSpec = {
             val animationSpec = tween<IntOffset>(400)
-            val slideDirection = if (targetState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
+            val slideDirection =
+                if (targetState) AnimatedContentScope.SlideDirection.Left else AnimatedContentScope.SlideDirection.Right
 
             slideIntoContainer(slideDirection, animationSpec) with
                     slideOutOfContainer(slideDirection, animationSpec)
@@ -341,10 +381,7 @@ fun MediaItemMenu(
                             secondaryText = "${playlistPreview.songCount} songs",
                             onClick = {
                                 onDismiss()
-                                onAddToPlaylist(
-                                    playlistPreview.playlist,
-                                    playlistPreview.songCount
-                                )
+                                onAddToPlaylist(playlistPreview.playlist, playlistPreview.songCount)
                             }
                         )
                     }
@@ -358,11 +395,23 @@ fun MediaItemMenu(
                 val thumbnailSizeDp = Dimensions.thumbnails.song
                 val thumbnailSizePx = thumbnailSizeDp.px
 
-                SongItem(
-                    song = mediaItem,
-                    thumbnailSizeDp = thumbnailSizeDp,
-                    thumbnailSizePx = thumbnailSizePx,
-                    trailingContent = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(end = 12.dp)
+                ) {
+                    SongItem(
+                        thumbnailUrl = mediaItem.mediaMetadata.artworkUri.thumbnail(thumbnailSizePx)
+                            ?.toString(),
+                        title = mediaItem.mediaMetadata.title.toString(),
+                        authors = mediaItem.mediaMetadata.artist.toString(),
+                        duration = null,
+                        thumbnailSizeDp = thumbnailSizeDp,
+                        modifier = Modifier
+                            .weight(1f)
+                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             icon = if (likedAt == null) R.drawable.heart_outline else R.drawable.heart,
                             color = colorPalette.favoritesIcon,
@@ -381,10 +430,17 @@ fun MediaItemMenu(
                                 .padding(all = 4.dp)
                                 .size(18.dp)
                         )
-                    },
-                    modifier = Modifier
-                        .clickable(onClick = onShare)
-                )
+
+                        IconButton(
+                            icon = R.drawable.share_social,
+                            color = colorPalette.text,
+                            onClick = onShare,
+                            modifier = Modifier
+                                .padding(all = 4.dp)
+                                .size(17.dp)
+                        )
+                    }
+                }
 
                 Spacer(
                     modifier = Modifier
@@ -468,19 +524,16 @@ fun MediaItemMenu(
                                 text = "Do you want to stop the sleep timer?",
                                 cancelText = "No",
                                 confirmText = "Stop",
-                                onDismiss = {
-                                    isShowingSleepTimerDialog = false
-                                    onDismiss()
-                                },
+                                onDismiss = { isShowingSleepTimerDialog = false },
                                 onConfirm = {
                                     binder?.cancelSleepTimer()
                                     onDismiss()
                                 }
                             )
                         } else {
-                            DefaultDialog(onDismiss = {
-                                isShowingSleepTimerDialog = false
-                            }) {
+                            DefaultDialog(
+                                onDismiss = { isShowingSleepTimerDialog = false }
+                            ) {
                                 var amount by remember {
                                     mutableStateOf(1)
                                 }
@@ -552,10 +605,7 @@ fun MediaItemMenu(
                                 ) {
                                     DialogTextButton(
                                         text = "Cancel",
-                                        onClick = {
-                                            isShowingSleepTimerDialog = false
-                                            onDismiss()
-                                        }
+                                        onClick = { isShowingSleepTimerDialog = false }
                                     )
 
                                     DialogTextButton(
@@ -565,7 +615,6 @@ fun MediaItemMenu(
                                         onClick = {
                                             binder?.startSleepTimer(amount * 10 * 60 * 1000L)
                                             isShowingSleepTimerDialog = false
-                                            onDismiss()
                                         }
                                     )
                                 }
@@ -576,15 +625,21 @@ fun MediaItemMenu(
                     MenuEntry(
                         icon = R.drawable.alarm,
                         text = "Sleep timer",
-                        secondaryText = sleepTimerMillisLeft?.let {
-                            "${
-                                DateUtils.formatElapsedTime(
-                                    it / 1000
+                        onClick = { isShowingSleepTimerDialog = true },
+                        trailingContent = sleepTimerMillisLeft?.let {
+                            {
+                                BasicText(
+                                    text = "${formatAsDuration(it)} left",
+                                    style = typography.xxs.medium,
+                                    modifier = modifier
+                                        .background(
+                                            color = colorPalette.background0,
+                                            shape = RoundedCornerShape(16.dp)
+                                        )
+                                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                                        .animateContentSize()
                                 )
-                            } left"
-                        },
-                        onClick = {
-                            isShowingSleepTimerDialog = true
+                            }
                         }
                     )
                 }
@@ -598,7 +653,9 @@ fun MediaItemMenu(
                             Image(
                                 painter = painterResource(R.drawable.chevron_forward),
                                 contentDescription = null,
-                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(colorPalette.textSecondary),
+                                colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(
+                                    colorPalette.textSecondary
+                                ),
                                 modifier = Modifier
                                     .size(16.dp)
                             )
@@ -607,7 +664,7 @@ fun MediaItemMenu(
                 }
 
                 onGoToAlbum?.let { onGoToAlbum ->
-                    mediaItem.mediaMetadata.extras?.getString("albumId")?.let { albumId ->
+                    albumInfo?.let { (albumId) ->
                         MenuEntry(
                             icon = R.drawable.disc,
                             text = "Go to album",
@@ -620,25 +677,16 @@ fun MediaItemMenu(
                 }
 
                 onGoToArtist?.let { onGoToArtist ->
-                    mediaItem.mediaMetadata.extras?.getStringArrayList("artistNames")
-                        ?.let { artistNames ->
-                            mediaItem.mediaMetadata.extras?.getStringArrayList("artistIds")
-                                ?.let { artistIds ->
-                                    artistNames.zip(artistIds)
-                                        .forEach { (authorName, authorId) ->
-                                            if (authorId != null) {
-                                                MenuEntry(
-                                                    icon = R.drawable.person,
-                                                    text = "More of $authorName",
-                                                    onClick = {
-                                                        onDismiss()
-                                                        onGoToArtist(authorId)
-                                                    }
-                                                )
-                                            }
-                                        }
-                                }
-                        }
+                    artistsInfo?.forEach { (authorId, authorName) ->
+                        MenuEntry(
+                            icon = R.drawable.person,
+                            text = "More of $authorName",
+                            onClick = {
+                                onDismiss()
+                                onGoToArtist(authorId)
+                            }
+                        )
+                    }
                 }
 
                 onRemoveFromQueue?.let { onRemoveFromQueue ->
@@ -668,6 +716,17 @@ fun MediaItemMenu(
                         icon = R.drawable.trash,
                         text = "Hide",
                         onClick = onHideFromDatabase
+                    )
+                }
+
+                onRemoveFromQuickPicks?.let {
+                    MenuEntry(
+                        icon = R.drawable.trash,
+                        text = "Hide from \"Quick picks\"",
+                        onClick = {
+                            onDismiss()
+                            onRemoveFromQuickPicks()
+                        }
                     )
                 }
             }

@@ -10,9 +10,9 @@ android {
     defaultConfig {
         applicationId = "it.vfsfitvnm.vimusic"
         minSdk = 21
-        targetSdk = 32
-        versionCode = 17
-        versionName = "0.5.1"
+        targetSdk = 33
+        versionCode = 20
+        versionName = "0.5.4"
     }
 
     splits {
@@ -70,6 +70,7 @@ kapt {
 }
 
 dependencies {
+    implementation(projects.composePersist)
     implementation(projects.composeRouting)
     implementation(projects.composeReordering)
 
@@ -87,7 +88,6 @@ dependencies {
 
     implementation(libs.room)
     kapt(libs.room.compiler)
-    annotationProcessor(libs.room.compiler)
 
     implementation(projects.innertube)
     implementation(projects.kugou)

@@ -5,7 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -16,19 +19,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.only
 import it.vfsfitvnm.vimusic.enums.ColorPaletteMode
 import it.vfsfitvnm.vimusic.enums.ColorPaletteName
 import it.vfsfitvnm.vimusic.enums.ThumbnailRoundness
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
+import it.vfsfitvnm.vimusic.utils.applyFontPaddingKey
 import it.vfsfitvnm.vimusic.utils.colorPaletteModeKey
 import it.vfsfitvnm.vimusic.utils.colorPaletteNameKey
+import it.vfsfitvnm.vimusic.utils.isAtLeastAndroid13
 import it.vfsfitvnm.vimusic.utils.isShowingThumbnailInLockscreenKey
 import it.vfsfitvnm.vimusic.utils.rememberPreference
 import it.vfsfitvnm.vimusic.utils.thumbnailRoundnessKey
+import it.vfsfitvnm.vimusic.utils.useSystemFontKey
 
 @ExperimentalAnimationApi
 @Composable
@@ -41,6 +44,8 @@ fun AppearanceSettings() {
         thumbnailRoundnessKey,
         ThumbnailRoundness.Light
     )
+    var useSystemFont by rememberPreference(useSystemFontKey, false)
+    var applyFontPadding by rememberPreference(applyFontPaddingKey, false)
     var isShowingThumbnailInLockscreen by rememberPreference(
         isShowingThumbnailInLockscreenKey,
         false
@@ -94,13 +99,33 @@ fun AppearanceSettings() {
 
         SettingsGroupSpacer()
 
-        SettingsEntryGroupText(title = "LOCKSCREEN")
+        SettingsEntryGroupText(title = "TEXT")
 
         SwitchSettingEntry(
-            title = "Show song cover",
-            text = "Use the playing song cover as the lockscreen wallpaper",
-            isChecked = isShowingThumbnailInLockscreen,
-            onCheckedChange = { isShowingThumbnailInLockscreen = it }
+            title = "Use system font",
+            text = "Use the font applied by the system",
+            isChecked = useSystemFont,
+            onCheckedChange = { useSystemFont = it }
         )
+
+        SwitchSettingEntry(
+            title = "Apply font padding",
+            text = "Add spacing around texts",
+            isChecked = applyFontPadding,
+            onCheckedChange = { applyFontPadding = it }
+        )
+
+        if (!isAtLeastAndroid13) {
+            SettingsGroupSpacer()
+
+            SettingsEntryGroupText(title = "LOCKSCREEN")
+
+            SwitchSettingEntry(
+                title = "Show song cover",
+                text = "Use the playing song cover as the lockscreen wallpaper",
+                isChecked = isShowingThumbnailInLockscreen,
+                onCheckedChange = { isShowingThumbnailInLockscreen = it }
+            )
+        }
     }
 }

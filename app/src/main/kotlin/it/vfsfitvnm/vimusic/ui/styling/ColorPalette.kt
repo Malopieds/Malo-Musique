@@ -2,7 +2,11 @@ package it.vfsfitvnm.vimusic.ui.styling
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.SaverScope
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
 import androidx.palette.graphics.Palette
 import it.vfsfitvnm.vimusic.enums.ColorPaletteMode
 import it.vfsfitvnm.vimusic.enums.ColorPaletteName
@@ -20,7 +24,30 @@ data class ColorPalette(
     val textSecondary: Color,
     val textDisabled: Color,
     val isDark: Boolean
-)
+) {
+    companion object : Saver<ColorPalette, List<Any>> {
+        override fun restore(value: List<Any>) = when (val accent = value[0] as Int) {
+            0 -> DefaultDarkColorPalette
+            1 -> DefaultLightColorPalette
+            2 -> PureBlackColorPalette
+            else -> dynamicColorPaletteOf(
+                FloatArray(3).apply { ColorUtils.colorToHSL(accent, this) },
+                value[1] as Boolean
+            )
+        }
+
+        override fun SaverScope.save(value: ColorPalette) =
+            listOf(
+                when {
+                    value === DefaultDarkColorPalette -> 0
+                    value === DefaultLightColorPalette -> 1
+                    value === PureBlackColorPalette -> 2
+                    else -> value.accent.toArgb()
+                },
+                value.isDark
+            )
+    }
+}
 
 val DefaultDarkColorPalette = ColorPalette(
     background0 = Color(0xff16171d),
@@ -100,7 +127,7 @@ fun dynamicColorPaletteOf(bitmap: Bitmap, isDark: Boolean): ColorPalette? {
     }
 }
 
-private fun dynamicColorPaletteOf(hsl: FloatArray, isDark: Boolean): ColorPalette {
+fun dynamicColorPaletteOf(hsl: FloatArray, isDark: Boolean): ColorPalette {
     return colorPaletteOf(ColorPaletteName.Dynamic, if (isDark) ColorPaletteMode.Dark else ColorPaletteMode.Light, false).copy(
         background0 = Color.hsl(hsl[0], hsl[1].coerceAtMost(0.1f), if (isDark) 0.10f else 0.925f),
         background1 = Color.hsl(hsl[0], hsl[1].coerceAtMost(0.3f), if (isDark) 0.15f else 0.90f),

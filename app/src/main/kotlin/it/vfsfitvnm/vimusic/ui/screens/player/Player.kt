@@ -1,9 +1,9 @@
 package it.vfsfitvnm.vimusic.ui.screens.player
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.media.audiofx.AudioEffect
-import android.widget.Toast
-import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.ExperimentalAnimationApi
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -29,6 +29,8 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.neverEqualPolicy
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -44,7 +46,8 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
-import it.vfsfitvnm.route.OnGlobalRoute
+import it.vfsfitvnm.innertube.models.NavigationEndpoint
+import it.vfsfitvnm.compose.routing.OnGlobalRoute
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.service.PlayerService
@@ -58,16 +61,16 @@ import it.vfsfitvnm.vimusic.ui.styling.Dimensions
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.collapsedPlayerProgressBar
 import it.vfsfitvnm.vimusic.ui.styling.px
+import it.vfsfitvnm.vimusic.utils.DisposableListener
 import it.vfsfitvnm.vimusic.utils.forceSeekToNext
 import it.vfsfitvnm.vimusic.utils.isLandscape
-import it.vfsfitvnm.vimusic.utils.rememberMediaItem
-import it.vfsfitvnm.vimusic.utils.rememberPositionAndDuration
-import it.vfsfitvnm.vimusic.utils.rememberShouldBePlaying
+import it.vfsfitvnm.vimusic.utils.positionAndDurationState
 import it.vfsfitvnm.vimusic.utils.seamlessPlay
 import it.vfsfitvnm.vimusic.utils.secondary
 import it.vfsfitvnm.vimusic.utils.semiBold
+import it.vfsfitvnm.vimusic.utils.shouldBePlaying
 import it.vfsfitvnm.vimusic.utils.thumbnail
-import it.vfsfitvnm.youtubemusic.models.NavigationEndpoint
+import it.vfsfitvnm.vimusic.utils.toast
 import kotlin.math.absoluteValue
 
 @ExperimentalFoundationApi
@@ -84,12 +87,33 @@ fun Player(
 
     binder?.player ?: return
 
-    val nullableMediaItem by rememberMediaItem(binder.player)
+    var nullableMediaItem by remember {
+        mutableStateOf(binder.player.currentMediaItem, neverEqualPolicy())
+    }
+
+    var shouldBePlaying by remember {
+        mutableStateOf(binder.player.shouldBePlaying)
+    }
+
+    binder.player.DisposableListener {
+        object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                nullableMediaItem = mediaItem
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                shouldBePlaying = binder.player.shouldBePlaying
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                shouldBePlaying = binder.player.shouldBePlaying
+            }
+        }
+    }
 
     val mediaItem = nullableMediaItem ?: return
 
-    val shouldBePlaying by rememberShouldBePlaying(binder.player)
-    val positionAndDuration by rememberPositionAndDuration(binder.player)
+    val positionAndDuration by binder.player.positionAndDurationState()
 
     val windowInsets = WindowInsets.systemBars
 
@@ -359,7 +383,9 @@ private fun PlayerMenu(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val resultRegistryOwner = LocalActivityResultRegistryOwner.current
+
+    val activityResultLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
     BaseMediaItemMenu(
         mediaItem = mediaItem,
@@ -369,19 +395,16 @@ private fun PlayerMenu(
             binder.setupRadio(NavigationEndpoint.Endpoint.Watch(videoId = mediaItem.mediaId))
         },
         onGoToEqualizer = {
-            val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, binder.player.audioSessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
-                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            }
-
-            if (intent.resolveActivity(context.packageManager) != null) {
-                val contract = ActivityResultContracts.StartActivityForResult()
-
-                resultRegistryOwner?.activityResultRegistry
-                    ?.register("", contract) {}?.launch(intent)
-            } else {
-                Toast.makeText(context, "No equalizer app found!", Toast.LENGTH_SHORT).show()
+            try {
+                activityResultLauncher.launch(
+                    Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+                        putExtra(AudioEffect.EXTRA_AUDIO_SESSION, binder.player.audioSessionId)
+                        putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
+                        putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                    }
+                )
+            } catch (e: ActivityNotFoundException) {
+                context.toast("Couldn't find an application to equalize audio")
             }
         },
         onShowSleepTimer = {},

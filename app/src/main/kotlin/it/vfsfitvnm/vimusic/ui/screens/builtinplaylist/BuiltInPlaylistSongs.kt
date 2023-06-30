@@ -15,16 +15,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import it.vfsfitvnm.compose.persist.persistList
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.LocalPlayerAwareWindowInsets
 import it.vfsfitvnm.vimusic.LocalPlayerServiceBinder
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.enums.BuiltInPlaylist
-import it.vfsfitvnm.vimusic.models.DetailedSong
-import it.vfsfitvnm.vimusic.savers.DetailedSongListSaver
+import it.vfsfitvnm.vimusic.models.Song
+import it.vfsfitvnm.vimusic.models.SongWithContentLength
 import it.vfsfitvnm.vimusic.ui.components.LocalMenuState
 import it.vfsfitvnm.vimusic.ui.components.themed.FloatingActionsContainerWithScrollToTop
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
@@ -39,7 +42,6 @@ import it.vfsfitvnm.vimusic.utils.asMediaItem
 import it.vfsfitvnm.vimusic.utils.enqueue
 import it.vfsfitvnm.vimusic.utils.forcePlayAtIndex
 import it.vfsfitvnm.vimusic.utils.forcePlayFromBeginning
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -52,25 +54,24 @@ fun BuiltInPlaylistSongs(builtInPlaylist: BuiltInPlaylist) {
     val binder = LocalPlayerServiceBinder.current
     val menuState = LocalMenuState.current
 
-    val songs by produceSaveableState(
-        initialValue = emptyList(),
-        stateSaver = DetailedSongListSaver
-    ) {
+    var songs by persistList<Song>("${builtInPlaylist.name}/songs")
+
+    LaunchedEffect(Unit) {
         when (builtInPlaylist) {
             BuiltInPlaylist.Favorites -> Database
                 .favorites()
-                .flowOn(Dispatchers.IO)
+
             BuiltInPlaylist.Offline -> Database
                 .songsWithContentLength()
                 .flowOn(Dispatchers.IO)
                 .map { songs ->
-                songs.filter { song ->
-                    song.contentLength?.let {
-                        binder?.cache?.isCached(song.id, 0, song.contentLength)
-                    } ?: false
+                    songs.filter { song ->
+                        song.contentLength?.let {
+                            binder?.cache?.isCached(song.song.id, 0, song.contentLength)
+                        } ?: false
+                    }.map(SongWithContentLength::song)
                 }
-            }
-        }.collect { value = it }
+        }.collect { songs = it }
     }
 
     val thumbnailSizeDp = Dimensions.thumbnails.song
@@ -103,7 +104,7 @@ fun BuiltInPlaylistSongs(builtInPlaylist: BuiltInPlaylist) {
                         text = "Enqueue",
                         enabled = songs.isNotEmpty(),
                         onClick = {
-                            binder?.player?.enqueue(songs.map(DetailedSong::asMediaItem))
+                            binder?.player?.enqueue(songs.map(Song::asMediaItem))
                         }
                     )
 
@@ -143,7 +144,7 @@ fun BuiltInPlaylistSongs(builtInPlaylist: BuiltInPlaylist) {
                             onClick = {
                                 binder?.stopRadio()
                                 binder?.player?.forcePlayAtIndex(
-                                    songs.map(DetailedSong::asMediaItem),
+                                    songs.map(Song::asMediaItem),
                                     index
                                 )
                             }
@@ -160,7 +161,7 @@ fun BuiltInPlaylistSongs(builtInPlaylist: BuiltInPlaylist) {
                 if (songs.isNotEmpty()) {
                     binder?.stopRadio()
                     binder?.player?.forcePlayFromBeginning(
-                        songs.shuffled().map(DetailedSong::asMediaItem)
+                        songs.shuffled().map(Song::asMediaItem)
                     )
                 }
             }

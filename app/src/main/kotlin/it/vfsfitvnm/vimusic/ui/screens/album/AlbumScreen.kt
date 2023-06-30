@@ -6,25 +6,28 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.valentinilk.shimmer.shimmer
-import it.vfsfitvnm.route.RouteHandler
+import it.vfsfitvnm.compose.persist.PersistMapCleanup
+import it.vfsfitvnm.compose.persist.persist
+import it.vfsfitvnm.innertube.Innertube
+import it.vfsfitvnm.innertube.models.bodies.BrowseBody
+import it.vfsfitvnm.innertube.requests.albumPage
+import it.vfsfitvnm.compose.routing.RouteHandler
 import it.vfsfitvnm.vimusic.Database
 import it.vfsfitvnm.vimusic.R
 import it.vfsfitvnm.vimusic.models.Album
 import it.vfsfitvnm.vimusic.models.SongAlbumMap
 import it.vfsfitvnm.vimusic.query
-import it.vfsfitvnm.vimusic.savers.AlbumSaver
-import it.vfsfitvnm.vimusic.savers.InnertubeAlbumItemListSaver
-import it.vfsfitvnm.vimusic.savers.InnertubePlaylistOrAlbumPageSaver
-import it.vfsfitvnm.vimusic.savers.innertubeItemsPageSaver
-import it.vfsfitvnm.vimusic.savers.nullableSaver
 import it.vfsfitvnm.vimusic.ui.components.themed.Header
 import it.vfsfitvnm.vimusic.ui.components.themed.HeaderIconButton
 import it.vfsfitvnm.vimusic.ui.components.themed.HeaderPlaceholder
@@ -38,12 +41,8 @@ import it.vfsfitvnm.vimusic.ui.screens.searchresult.ItemsPage
 import it.vfsfitvnm.vimusic.ui.styling.LocalAppearance
 import it.vfsfitvnm.vimusic.ui.styling.px
 import it.vfsfitvnm.vimusic.utils.asMediaItem
-import it.vfsfitvnm.vimusic.utils.produceSaveableState
-import it.vfsfitvnm.youtubemusic.Innertube
-import it.vfsfitvnm.youtubemusic.models.bodies.BrowseBody
-import it.vfsfitvnm.youtubemusic.requests.albumPage
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 
 @ExperimentalFoundationApi
@@ -52,63 +51,60 @@ import kotlinx.coroutines.withContext
 fun AlbumScreen(browseId: String) {
     val saveableStateHolder = rememberSaveableStateHolder()
 
-    val (tabIndex, onTabChanged) = rememberSaveable {
+    var tabIndex by rememberSaveable {
         mutableStateOf(0)
     }
 
-    val album by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(AlbumSaver),
-    ) {
+    var album by persist<Album?>("album/$browseId/album")
+    var albumPage by persist<Innertube.PlaylistOrAlbumPage?>("album/$browseId/albumPage")
+
+    PersistMapCleanup(tagPrefix = "album/$browseId/")
+
+    LaunchedEffect(Unit) {
         Database
             .album(browseId)
-            .flowOn(Dispatchers.IO)
-            .collect { value = it }
-    }
+            .combine(snapshotFlow { tabIndex }) { album, tabIndex -> album to tabIndex }
+            .collect { (currentAlbum, tabIndex) ->
+                album = currentAlbum
 
-    val innertubeAlbum by produceSaveableState(
-        initialValue = null,
-        stateSaver = nullableSaver(InnertubePlaylistOrAlbumPageSaver),
-        tabIndex > 0
-    ) {
-        if (value != null || (tabIndex == 0 && withContext(Dispatchers.IO) {
-                Database.albumTimestamp(
-                    browseId
-                )
-            } != null)) return@produceSaveableState
+                if (albumPage == null && (currentAlbum?.timestamp == null || tabIndex == 1)) {
+                    withContext(Dispatchers.IO) {
+                        Innertube.albumPage(BrowseBody(browseId = browseId))
+                            ?.onSuccess { currentAlbumPage ->
+                                albumPage = currentAlbumPage
 
-        withContext(Dispatchers.IO) {
-            Innertube.albumPage(BrowseBody(browseId = browseId))
-        }?.onSuccess { albumPage ->
-            value = albumPage
+                                Database.clearAlbum(browseId)
 
-            query {
-                Database.upsert(
-                    Album(
-                        id = browseId,
-                        title = albumPage.title,
-                        thumbnailUrl = albumPage.thumbnail?.url,
-                        year = albumPage.year,
-                        authorsText = albumPage.authors?.joinToString("") { it.name ?: "" },
-                        shareUrl = albumPage.url,
-                        timestamp = System.currentTimeMillis(),
-                        bookmarkedAt = album?.bookmarkedAt
-                    ),
-                    albumPage
-                        .songsPage
-                        ?.items
-                        ?.map(Innertube.SongItem::asMediaItem)
-                        ?.onEach(Database::insert)
-                        ?.mapIndexed { position, mediaItem ->
-                            SongAlbumMap(
-                                songId = mediaItem.mediaId,
-                                albumId = browseId,
-                                position = position
-                            )
-                        } ?: emptyList()
-                )
+                                Database.upsert(
+                                    Album(
+                                        id = browseId,
+                                        title = currentAlbumPage.title,
+                                        thumbnailUrl = currentAlbumPage.thumbnail?.url,
+                                        year = currentAlbumPage.year,
+                                        authorsText = currentAlbumPage.authors
+                                            ?.joinToString("") { it.name ?: "" },
+                                        shareUrl = currentAlbumPage.url,
+                                        timestamp = System.currentTimeMillis(),
+                                        bookmarkedAt = album?.bookmarkedAt
+                                    ),
+                                    currentAlbumPage
+                                        .songsPage
+                                        ?.items
+                                        ?.map(Innertube.SongItem::asMediaItem)
+                                        ?.onEach(Database::insert)
+                                        ?.mapIndexed { position, mediaItem ->
+                                            SongAlbumMap(
+                                                songId = mediaItem.mediaId,
+                                                albumId = browseId,
+                                                position = position
+                                            )
+                                        } ?: emptyList()
+                                )
+                            }
+                    }
+
+                }
             }
-        }
     }
 
     RouteHandler(listenToGlobalEmitter = true) {
@@ -184,7 +180,7 @@ fun AlbumScreen(browseId: String) {
                 topIconButtonId = R.drawable.chevron_back,
                 onTopIconButtonClick = pop,
                 tabIndex = tabIndex,
-                onTabChanged = onTabChanged,
+                onTabChanged = { tabIndex = it },
                 tabColumnContent = { Item ->
                     Item(0, "Songs", R.drawable.musical_notes)
                     Item(1, "Other versions", R.drawable.disc)
@@ -203,16 +199,16 @@ fun AlbumScreen(browseId: String) {
                             val thumbnailSizePx = thumbnailSizeDp.px
 
                             ItemsPage(
-                                stateSaver = innertubeItemsPageSaver(InnertubeAlbumItemListSaver),
+                                tag = "album/$browseId/alternatives",
                                 headerContent = headerContent,
                                 initialPlaceholderCount = 1,
                                 continuationPlaceholderCount = 1,
                                 emptyItemsText = "This album doesn't have any alternative version",
-                                itemsPageProvider = innertubeAlbum?.let {
+                                itemsPageProvider = albumPage?.let {
                                     ({
                                         Result.success(
                                             Innertube.ItemsPage(
-                                                items = innertubeAlbum?.otherVersions,
+                                                items = albumPage?.otherVersions,
                                                 continuation = null
                                             )
                                         )
